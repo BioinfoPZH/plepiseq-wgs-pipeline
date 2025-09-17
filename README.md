@@ -42,10 +42,11 @@ This project is part of [PleEpiSeq](https://www.pzh.gov.pl/projekty-i-programy/p
 git clone --depth 1 https://github.com/mkadlof/pzh_pipeline_viral
 cd pzh_pipeline_viral
 
-# 2. build the three core images (main, Manta, updater)
+# 2. build four core docker images
 docker build --target main    -f docker/Dockerfile-main   -t pzh_pipeline_viral_main:latest .
 docker build --target manta   -f docker/Dockerfile-manta  -t pzh_pipeline_viral_manta:latest .
 docker build --target updater -f docker/Dockerfile-main   -t pzh_pipeline_viral_updater:latest .
+docker build -f docker/Dockerfile-bacteria -t pzh_pipeline_bacterial_main:latest .
 
 # 3. download external reference databases (≈230 GB)
 ./update_external_databases.sh --database all --output /mnt/raid/external_databases
