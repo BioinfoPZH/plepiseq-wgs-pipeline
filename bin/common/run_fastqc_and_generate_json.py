@@ -186,8 +186,10 @@ def main_program(input_file, memory, cpu, min_number, min_qual, status, stage, p
                             indeks = 0
                         else:
                             # fastqc przekazuje dane w postaci od-do np 30-35,
-                            length_histogram_file.write(f'{indeks};{line[0].split("-")[0]};{line[1]}')
-                            reads_median_length_data.extend([int(line[0].split("-")[0])] * int(float(line[1].rstrip())))
+                            low, high = line[0].split("-")
+                            mid = ( int(high) - int(low) ) / 2
+                            length_histogram_file.write(f'{indeks};{mid};{line[1]}')
+                            reads_median_length_data.extend([int(mid)] * int(float(line[1].rstrip())))
                             indeks += 1
                     if section_name == "Per base sequence quality":
                         if "#" in line[0]:
