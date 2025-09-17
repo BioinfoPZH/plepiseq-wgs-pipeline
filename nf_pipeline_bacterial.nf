@@ -265,7 +265,7 @@ process spades {
   // Modul definiuje QC_status az do modulu extract_final_stats, gdzie status moze ulec zmianie
   cpus params.threads
   memory "20 GB"
-  time "20m"
+  time "30m"
   container  = params.main_image
   tag "Spades dla sample $x"
   input:
