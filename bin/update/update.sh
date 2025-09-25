@@ -177,6 +177,17 @@ update_cge() {
 	python3 INSTALL.py /home/kma/kma_index non_interactive >> log 2>&1
 }
 
+# MLST db requires binary for kma not kma_interactive  (as of 15.09.2025)
+update_cge_mlstdb() {
+        local db=$1
+        if [ -d "/home/external_databases/${db}" ]; then
+                rm -rf /home/external_databases/${db}/
+        fi
+        cd /home/external_databases
+        git clone https://bitbucket.org/genomicepidemiology/${db}/
+        cd ${db}
+        python3 INSTALL.py /home/kma/kma non_interactive >> log 2>&1
+}
 #VFDB
 ## No update
 update_vfdb() {
@@ -617,7 +628,7 @@ if [ ${db_name} == "all" ];then
 	echo "Downloading data for disinfinder at: $(date +"%H:%M %d-%m-%Y")"
 	update_cge disinfinder_db >> /dev/null 2>&1
 	echo "Downloading data for mlst_db at: $(date +"%H:%M %d-%m-%Y")"
-	update_cge mlst_db >> /dev/null 2>&1
+	update_cge_mlstdb mlst_db >> /dev/null 2>&1
 	echo "Downloading data for plasmidfinder at: $(date +"%H:%M %d-%m-%Y")"
 	update_cge plasmidfinder_db >> /dev/null 2>&1
 	echo "Downloading data for resfinder at: $(date +"%H:%M %d-%m-%Y")"
@@ -659,7 +670,7 @@ elif [ ${db_name} == "pointfinder" ]; then
 elif [ ${db_name} == "disinfinder" ]; then
         update_cge disinfinder_db >> /dev/null 2>&1
 elif [ ${db_name} == "mlstfinder" ]; then
-        update_cge mlst_db >> /dev/null 2>&1
+        update_cge_mlstdb mlst_db >> /dev/null 2>&1
 elif [ ${db_name} == "plasmidfinder" ]; then
         update_cge plasmidfinder_db >> /dev/null 2>&1
 elif [ ${db_name} == "resfinder" ]; then
