@@ -186,10 +186,15 @@ def main_program(input_file, memory, cpu, min_number, min_qual, status, stage, p
                         else:
                             # fastqc przekazuje dane w postaci od-do np 30-35, dla nanopoe powoduje to ze zakres moze byc np 0-50,000 wiec branie donego zakresu
                             # tracie sens, bedziemy brac midpoint zakresu do liczenia mediany odczytu
-                            low, high = line[0].split("-")
-                            mid = ( int(high) - int(low) ) / 2
-                            length_histogram_file.write(f'{indeks};{mid};{line[1]}')
-                            reads_median_length_data.extend([int(mid)] * int(float(line[1].rstrip())))
+                            if "-" in line[0]:
+                                low, high = map(int, line[0].split("-"))
+                                mid = (low + high) // 2   
+                                length_histogram_file.write(f"{indeks};{mid};{line[1]}")
+                                reads_median_length_data.extend([mid] * int(float(line[1].rstrip())))
+                            else:
+                                low = int(line[0])
+                                length_histogram_file.write(f"{indeks};{low};{line[1]}")
+                                reads_median_length_data.extend([low] * int(float(line[1].rstrip())))
                             indeks += 1
                     if section_name == "Per base sequence quality":
                         if "#" in line[0]:
