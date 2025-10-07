@@ -192,13 +192,9 @@ update_cge_mlstdb() {
 ## No update
 update_vfdb() {
 	local cpus=$1
-        if [ -d "/home/external_databases/vfdb" ]; then
-                rm -rf /home/external_databases/vfdb/*
-        else
-                mkdir /home/external_databases/vfdb/
-        fi
-        cd /home/external_databases/vfdb
-        python3 -u /home/update/download_vfdb.py ${cpus} >> log 2>&1
+  python3 -u /home/update/download_vfdb.py --output_dir /home/external_databases/vfdb \
+                                            --cpus ${cpus}
+
 }
 
 # MLST data
@@ -638,7 +634,7 @@ if [ ${db_name} == "all" ];then
 	echo "Downloading data for virulencefinder at: $(date +"%H:%M %d-%m-%Y")"
 	update_cge virulencefinder_db >> /dev/null 2>&1
 	echo "Downloading data for vfcb at: $(date +"%H:%M %d-%m-%Y")"
-	update_vfdb ${cpus} >> /dev/null 2>&1
+	update_vfdb ${cpus}
 	echo "Downloading MLST data at: $(date +"%H:%M %d-%m-%Y")"
 	update_mlst ${genus}  >> /dev/null 2>&1
 	echo "Downloading cgMLST data at: $(date +"%H:%M %d-%m-%Y")"

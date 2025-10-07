@@ -1,91 +1,100 @@
-# skrypt do przygotowania bazy VFDB
-# rozbija wielka faste na podfasty umieszczane w katalogu
-# organizm/Virulence_class/Virulence_factor/gene.fa
-# katalog Virulence_factor moze zawierac wiele genow
-# oczywiscie Virulence_class i Virulence_factor to zmienne
-
-from Bio import SeqIO
-import re
-import sys
 import os
-import subprocess
-from multiprocessing import Pool
+import sys
+import re
+import time
+import json
 import glob
 import shutil
+import hashlib
+import logging
+import subprocess
+from datetime import datetime
+from multiprocessing import Pool
+from pathlib import Path
+import click
 import requests
-import time
+from Bio import SeqIO
 
-def execute_command(polecenie: str):
-    """
 
-    :param polecenie: str, polecenie do wykonania w powloce
-    :return: Polecenie ma zwrocic zwykle jakis plik, wiec sama funkcja nie zwraca nic
-    """
-    try:
-        wykonanie = subprocess.Popen(polecenie, shell=True, stdout=subprocess.PIPE)
-        wykonanie.communicate()
-        return True
-    except:
-        return False
+VFDB_BASE_URL = "https://www.mgc.ac.cn/VFs/Down" # url to Download (yes it is 'Down')
+VFDB_HOME = "http://www.mgc.ac.cn/VFs/" # base url
+FILES = ["VFDB_setB_nt.fas.gz", "VFs.xls.gz"] # relevant files from vfdb
 
-def run_blast(lista_plikow, start, end):
-    # index the file
-    for plik in lista_plikow[start:end]:
-        #print(f'Running blast for file {plik}')
-        execute_command(f"makeblastdb -in {plik} -dbtype nucl")
-    return True
 
-def download_file_with_retry(url, output_path, auth_user='anonymous', auth_pass='anonymous', max_retries=3, wait_seconds=300):
-    """
-    Downloads a file from a provided url, 3 attempts are made separated by a 5 minutes window.
-    """
-    attempt = 1
-    while attempt <= max_retries:
+# ---------------------------- Helper Functions ---------------------------- #
+
+def setup_logging(output_dir: Path):
+
+    log_file_path = os.path.join(output_dir, "log.log")
+    logging.basicConfig(
+        level=logging.INFO,
+        format='[%(asctime)s] %(levelname)s: %(message)s',
+        handlers=[
+            logging.FileHandler(log_file_path, mode='w'),
+            logging.StreamHandler(sys.stdout)
+        ]
+    )
+    logging.info("Logging initialized. Output log: %s", log_file_path)
+
+
+def execute_command(cmd: str):
+    """Execute shell command and capture output."""
+    process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stdout, stderr = process.communicate()
+    if stdout:
+        logging.debug(stdout.decode())
+    if stderr:
+        logging.debug(stderr.decode())
+    return process.returncode == 0
+
+
+def download_file_with_retry(url, output_path, max_retries=3, wait_seconds=300):
+    """Download file with retries."""
+    for attempt in range(1, max_retries + 1):
         try:
-            response = requests.get(url, auth=(auth_user, auth_pass), stream=True, timeout=60)
+            response = requests.get(url, stream=True, timeout=60)
             if response.status_code == 200:
-                print(f"Download {url}")
-                with open(output_path, 'wb') as f:
+                logging.info("Downloading %s...", os.path.basename(output_path))
+                with open(output_path, "wb") as f:
                     for chunk in response.iter_content(chunk_size=8192):
                         if chunk:
                             f.write(chunk)
                 return True
-
+            else:
+                logging.warning("Attempt %d failed with status %d", attempt, response.status_code)
         except Exception as e:
-            print(f"[ERROR] Download attempt {attempt} failed: {e}")
-
+            logging.warning("Attempt %d failed: %s", attempt, str(e))
         if attempt < max_retries:
-            print(f"[LOG] Waiting {wait_seconds} seconds before retry...")
+            logging.info("Waiting %d seconds before retry...", wait_seconds)
             time.sleep(wait_seconds)
-        attempt += 1
-
-    print(f"[ERROR] Failed to download {url} after {max_retries} attempts.")
+    logging.error("Failed to download %s after %d attempts.", url, max_retries)
     return False
 
 
-# najpierw pobieramy naglowki
-def read_fasta(fasta):
-    """
-    Funkcja do wczytania segemtnu
-    :param fasta:
-    :return:
-    """
-    slownik = {}
-    fasta = SeqIO.parse(fasta, "fasta")
-    for read in fasta:
-        slownik[f'>{read.description}'] = str(read.seq)
-    return slownik
+def file_md5sum(path):
+    """Compute md5 checksum of a file."""
+    h = hashlib.md5()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(8192), b""):
+            h.update(chunk)
+    return h.hexdigest()
 
-def extract_info_from_header(naglowek, bis = 0):
-    """
 
-    W VFDB naglowki dzieki bogu maja regularna nazwe
-    # wyciagamy z nich informacje o organizmie, VF, VFC, VF opis i VFC opis
-    # wszystko zapisujemy do slownika gdzie naglowek jest kluczem a kolejne wartosci sa wlscie
-    # Generalnie poslugujemy sie troche wyrazeniami regularnymi
-    :param naglowek:
-    :return:
-    """
+def vfdb_server_available():
+    """Check VFDB server availability."""
+    try:
+        response = requests.head(VFDB_HOME, timeout=10)
+        return response.status_code == 200
+    except Exception:
+        return False
+
+
+def read_fasta(fasta_path):
+    """Parse FASTA file into dict {header: sequence}."""
+    return {f">{rec.description}": str(rec.seq) for rec in SeqIO.parse(fasta_path, "fasta")}
+
+
+def extract_info_from_header(header, bis=0):
     # Pattern napisany przy pomocy strony https://regexr.com/7voga
     # dla stringa
     # >VFG030121(gb|WP_013988985) (kefB) cation:proton antiporter [Potassium/proton antiporter (VF0838) - Immune modulation (VFC0258)] [Mycobacterium africanum GM041182]
@@ -106,131 +115,165 @@ def extract_info_from_header(naglowek, bis = 0):
     # 'Mycobacterium '
     # testowano tez na
     # >VFG021469(gb|WP_000062035) (stbA) type 1 fimbrial protein [Stb (VF0954) - Adherence (VFC0001)] [Salmonella enterica subsp. enterica serovar Heidelberg str. SL476]
-    # pattern = '^>\w+\((\w+\|\w+)\)\s\((\w+)\)\s.+\s\[(.+)\s\((.+)\)\s-\s(.+)\s\((.+)\)\]\s\[(\w+)\s.*\]'
 
-    # update patterny gdy naglowek ma gen ww trybie (sycN/vcr2) lub (vgrG-2)
-    # pattern = '^>\w+\((\w+\|\w+|\w+\|\w+\.\w+)\)\s\((\w+|\w+\/\w+|\w+-.+)\)\s.+\s\[(.+)\s\((.+)\)\s-\s(.+)\s\((.+)\)\]\s\[(\w+)\s.*\]'
-    pattern = '^>\w+\((\w+\|\w+|\w+\|\w+\.\w+)\)\s\((.*)\)\s.+\s\[(.+)\s\((.+)\)\s-\s(.+)\s\((.+)\)\]\s\[(\w+)\s.*\]'
-    #obejscie dla sekwencji gdzie id jest bledne np
+    """Extract organism, VF, and VFC info from VFDB FASTA headers."""
+    pattern = '^>\\w+\\((\\w+\\|\\w+|\\w+\\|\\w+\\.\\w+)\\)\\s\\((.*)\\)\\s.+\\s\\[(.+)\\s\\((.+)\\)\\s-\\s(.+)\\s\\((.+)\\)\\]\\s\\[(\\w+)\\s.*\\]'
     #  >VFG000371 (yadA) trimeric autotransporter adhesin YadA [YadA (VF0133) - Effector delivery system (VFC0086)] [Yersinia pestis CO92]
     if bis:
-        pattern = '^>(\w)+\s\((.*)\)\s.+\s\[(.+)\s\((.+)\)\s-\s(.+)\s\((.+)\)\]\s\[(\w+)\s.*\]'
-    match = re.match(pattern, naglowek)
-    return [match.group(1), match.group(2), match.group(3), match.group(4),match.group(5),match.group(6),match.group(7)]
+        pattern = '^>(\\w)+\\s\\((.*)\\)\\s.+\\s\\[(.+)\\s\\((.+)\\)\\s-\\s(.+)\\s\\((.+)\\)\\]\\s\\[(\\w+)\\s.*\\]'
+    match = re.match(pattern, header)
+    if not match:
+        raise ValueError(f"Header pattern mismatch: {header}")
+    return [match.group(i) for i in range(1, 8)]
 
-if __name__ == '__main__':
 
-    cpus = int(sys.argv[1])
-    if os.path.exists('VFDB_setB_nt.fas') or os.path.exists('VFDB_setB_nt.fas.gz'):
-        # found some previous data remove everything before we do main script
-        _ = [shutil.rmtree(dir_path) for dir_path in os.listdir('.') if os.path.isdir(dir_path)]
-        
-        if os.path.exists('VFs.xls'):
-            os.remove('VFs.xls')
-        if os.path.exists('VFs.xls.gz'):
-            os.remove('VFs.xls.gz')
+def run_blast(lista_plikow, start, end):
+    """Run makeblastdb on FASTA files in parallel."""
+    for plik in lista_plikow[start:end]:
+        execute_command(f"makeblastdb -in {plik} -dbtype nucl")
+    return True
 
-        if os.path.exists('log_old'):
-            os.remove('log_old')
-        
-        if os.path.exists('VFDB_setB_nt.fas.gz'):
-            os.remove('VFDB_setB_nt.fas.gz')
-        if os.path.exists('VFDB_setB_nt.fas'):
-            os.remove('VFDB_setB_nt.fas')
-        
-    # download the new data 
-    #execute_command('curl -u anonymous:anonymous https://www.mgc.ac.cn/VFs/Down/VFDB_setB_nt.fas.gz -O')
-    #execute_command('curl -u anonymous:anonymous https://www.mgc.ac.cn/VFs/Down/VFs.xls.gz -O')
-   
-    download_file_with_retry(
-    url='https://www.mgc.ac.cn/VFs/Down/VFDB_setB_nt.fas.gz',
-    output_path='VFDB_setB_nt.fas.gz'
-    )
+### Main function ###
+@click.command()
+@click.option("-o", "--output_dir", required=True, type=click.Path(), help="Output directoryfor vfdb")
+@click.option("-c", "--cpus", default=4, show_default=True, help="Number of CPUs for BLAST indexing")
+@click.option("-r", "--max_retries", default=3, show_default=True, help="Maximum retries for downloads")
+@click.option("-w", "--wait_seconds", default=300, show_default=True, help="Seconds to wait between retries")
+def main(output_dir, cpus, max_retries, wait_seconds):
 
-    download_file_with_retry(
-    url='https://www.mgc.ac.cn/VFs/Down/VFs.xls.gz',
-    output_path='VFs.xls.gz'
-    )
+    ### check if output dir for vfdb exists, if not create it
+    output_dir = Path(output_dir)
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir, exist_ok=True)
 
-    #unzip
-    execute_command('gunzip VFDB_setB_nt.fas.gz')
-    execute_command('gunzip VFs.xls.gz')
+    # Initialize log.log file in vfdb directory
+    start_time = datetime.now()
+    setup_logging(output_dir)
+    logging.info("=== VFDB Downloader started ===")
 
-    fasta_file = 'VFDB_setB_nt.fas'
-    slownik_sekwencji = read_fasta(fasta_file)
+    # Check VFDB availability
+    # do nothing if server is unavailable
+    if not vfdb_server_available():
+        logging.warning("VFDB server unavailable. Skipping update for now.")
+        sys.exit(0)
 
-    # jak to zrobic
-    # of to jest glupie, ale zadzial
-    # idac po naglowkach tworzymy slownik gdzie kluczem jest  string w postaci
-    # {organizm}/{VFC}/{VF}
-    # potem jest kolejny klucz czyli {gene}
-    # i wartosciami tego slownika jest ostateczny slownik gdzie kluczem jest id sekwencji a wartosci sekwencja
-    # na koniec iterujemy po slowniku i zapisujemy faste do pliku ...
-    # na przyklad
-    # slownik['salmonella/VFC1/VF13'] ma podslowniki
-    # slownik['salmonella/VFC1/VF13']['genA'] slownik['salmonella/VFC1/VF13']['genB']
-    # i to ma kolejne podslowniki
-    # slownik['salmonella/VFC1/VF13']['genA'] = {'some_id':'sekwencja'; 'different_id': 'sekwencja}
-    # pierwszy klucz bedzie katalogiem
-    # drugi klucz nazwa pliku w tym katalogu
-    # a trzeci poslownik jest zapisywany do tego pliku
+    # vfdb_md5.json stores md5sum of relevant files from a previous attempt to download data
+    # if VFDB is available and relevant files are identical to what we have we will skip the update
+    # if files have different md5sum we clean the directory and process the data
+    md5_path = os.path.join(output_dir, "vfdb_md5.json")
+    old_md5 = {}
 
-    slownik_VFDB = {}
+    if os.path.exists(md5_path):
+        with open(md5_path, "r") as f:
+            old_md5 = json.load(f)
 
-    for id,seq in slownik_sekwencji.items():
+
+
+    # if 'old' source files are inside directory (they should be) rename them to old
+    # if update is required they will be simply removed
+    # if update is not required we will restore their original name
+    for file_name in FILES:
+        if os.path.exists(os.path.join(output_dir, file_name)):
+            os.rename(os.path.join(output_dir, file_name), os.path.join(output_dir, file_name + '.old'))
+
+
+    # Donload files from VFDB and compare md5sum to current version
+    updated_files = []
+    for file_name in FILES:
+        url = f"{VFDB_BASE_URL}/{file_name}"
+        local_path = os.path.join(output_dir, file_name)
+
+        # Failed download abort everything
+        if not download_file_with_retry(url, local_path, max_retries, wait_seconds):
+            if os.path.exists(local_path + ".old"):
+                os.rename(local_path + ".old", local_path)
+            sys.exit(1)
+
+        # Calculate md5sum of a new file
+        new_md5 = file_md5sum(local_path)
+        if old_md5.get(file_name) == new_md5:
+            logging.info("%s unchanged (MD5 match). Skipping update.", file_name)
+            # remove old file (identical to one just downloaded)
+            if os.path.exists(local_path + ".old"):
+                os.remove(local_path + ".old")
+        else:
+            # we need to update our database
+            updated_files.append(file_name)
+            old_md5[file_name] = new_md5
+            # remove old file as well we only need new one
+            if os.path.exists(local_path + ".old"):
+                os.remove(local_path + ".old")
+
+    # updated_files is empty no need to update
+    if not updated_files:
+        logging.info("All VFDB files are up to date. Nothing to do.")
+        sys.exit(0)
+    else:
+        # clean all subdirectories in output_dir / vfdb we will store new results there
+        _ = [shutil.rmtree(os.path.join(output_dir, d)) for d in os.listdir(output_dir) if os.path.isdir(os.path.join(output_dir, d))]
+
+
+    # Save updated md5s
+    with open(md5_path, "w") as f:
+        json.dump(old_md5, f, indent=2)
+
+    # Decompress all files not only one that is beeing updated
+    for f in FILES:
+        if f.endswith(".gz"):
+            execute_command(f"gunzip -f {os.path.join(output_dir, f)}")
+
+    fasta_path = os.path.join(output_dir, "VFDB_setB_nt.fas")
+    if not os.path.exists(fasta_path):
+        logging.error("Missing VFDB_setB_nt.fas after decompression.")
+        sys.exit(1)
+
+    # Parse and organize FASTA
+    logging.info("Parsing FASTA and organizing directory structure...")
+    seq_dict = read_fasta(fasta_path)
+    vfdb_dict = {}
+
+    for header, seq in seq_dict.items():
         try:
-            seq_id, gene, VF_name, VF_id, VFC_name, VFC_id, org = extract_info_from_header(id)
-        except:
+            seq_id, gene, VF_name, VF_id, VFC_name, VFC_id, org = extract_info_from_header(header)
+        except Exception:
             try:
-                seq_id, gene, VF_name, VF_id, VFC_name, VFC_id, org = extract_info_from_header(id, 1)
-            except:
-                print(f'Omijam sekwencje {id}')
-        gene = gene.replace('/', '-')
-        pattern = f'{org}/{VFC_id}/{VF_id}'
-        if pattern not in slownik_VFDB:
-            slownik_VFDB[pattern] = {}
+                seq_id, gene, VF_name, VF_id, VFC_name, VFC_id, org = extract_info_from_header(header, bis=1)
+            except Exception:
+                logging.warning("Skipping sequence: %s", header)
+                continue
 
-        if ')' in gene:
-            gene=gene.split(')')[0]
-        if '(' in gene:
-            gene=gene.split('(')[0]
-        #usuwamy dziwne znaki w nazwach genow
-        gene=gene.replace('*', '-').replace("'", "-").replace(" ","-").replace('<','-').replace('>','-')
-        if gene not in slownik_VFDB[pattern]:
-            slownik_VFDB[pattern][gene] = {}
+        gene = gene.replace("/", "-").replace("*", "-").replace("'", "-").replace(" ", "-").replace("<", "-").replace(">", "-")
+        gene = re.sub(r"[()]", "", gene)
+        key_path = f"{org}/{VFC_id}/{VF_id}"
 
-        slownik_VFDB[pattern][gene][id] = seq
+        vfdb_dict.setdefault(key_path, {}).setdefault(gene, {})[header] = seq
 
-    for dir in slownik_VFDB.keys():
-        print(f'Create dir for {dir}')
-        os.makedirs(dir)
-        for geny in slownik_VFDB[dir]:
-            with open(f'{dir}/{geny}.fa', 'w') as f:
-                for id,seq in slownik_VFDB[dir][geny].items():
-                    f.write(f'{id}\n{seq}\n')
+    for dir_path, genes in vfdb_dict.items():
+        full_dir = os.path.join(output_dir, dir_path)
+        os.makedirs(full_dir, exist_ok=True)
+        for gene, seqs in genes.items():
+            with open(os.path.join(full_dir, f"{gene}.fa"), "w") as f:
+                for h, s in seqs.items():
+                    f.write(f"{h}\n{s}\n")
 
-    # running makeblastdb on all fasta files
-    lista_plikow = glob.glob('**/*.fa', recursive=True)
+    # Run makeblastdb in parallel
+    logging.info("Creating BLAST indices...")
+    fasta_files = glob.glob(os.path.join(output_dir, "**/*.fa"), recursive=True)
     pool = Pool(cpus)
-
-    lista_indeksow = []
-    start = 0
-    step = len(lista_plikow) // cpus
-
-    for i in range(cpus):
-        end = start + step
-        if i == (cpus - 1) or end > len(lista_plikow):
-            # if this is a last cpu or yoy passed the last element of a list, use as end len(lista_loci)
-            end = len(lista_plikow)
-        lista_indeksow.append([start, end])
-        start = end
-
-    jobs = []
-    for start, end in lista_indeksow:
-        jobs.append(pool.apply_async(run_blast, (lista_plikow, start, end)))
+    step = len(fasta_files) // cpus or 1
+    jobs = [pool.apply_async(run_blast, (fasta_files, i, min(i + step, len(fasta_files))))
+            for i in range(0, len(fasta_files), step)]
     pool.close()
     pool.join()
 
-    if os.path.exists('log'):
-        os.rename("log", "log_old")
-    #execute_command('find . -name "*fa" | xargs -I {} --max-procs=96  bash -c "makeblastdb -in {} -dbtype nucl"')
+    # gzip back files for next update
+    for f in ['VFs.xls', 'VFDB_setB_nt.fas']:
+        execute_command(f"gzip {os.path.join(output_dir, f)}")
+
+    end_time = datetime.now()
+    logging.info("=== VFDB Downloader finished successfully ===")
+    logging.info("Total runtime: %s", str(end_time - start_time).split(".")[0])
+
+
+if __name__ == "__main__":
+    main()
