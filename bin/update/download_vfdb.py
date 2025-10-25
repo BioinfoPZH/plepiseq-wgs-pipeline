@@ -17,7 +17,7 @@ from Bio import SeqIO
 
 
 VFDB_BASE_URL = "https://www.mgc.ac.cn/VFs/Down" # url to Download (yes it is 'Down')
-VFDB_HOME = "http://www.mgc.ac.cn/VFs/" # base url
+VFDB_HOME="https://www.mgc.ac.cn/VFs/main.htm"
 FILES = ["VFDB_setB_nt.fas.gz", "VFs.xls.gz"] # relevant files from vfdb
 
 
