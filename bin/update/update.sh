@@ -616,7 +616,7 @@ if [ ${db_name} == "all" ];then
 	echo "Downloading data for AMRfinder_plus at: $(date +"%H:%M %d-%m-%Y")"
 	update_amrfinder >> /dev/null 2>&1
 	echo "Downloading data for kmerfinder at: $(date +"%H:%M %d-%m-%Y")"
-	update_kmerfinder >> /dev/null 2>&1
+	# update_kmerfinder >> /dev/null 2>&1
 	echo "Downloading data for metaphlan at: $(date +"%H:%M %d-%m-%Y")"
 	update_metaphlan >> /dev/null 2>&1
 	echo "Downloading data for pointfinder at: $(date +"%H:%M %d-%m-%Y")"
@@ -658,7 +658,8 @@ elif [ ${db_name} == "nextclade" ]; then
 elif [ ${db_name} == "amrfinder_plus" ]; then
 	update_amrfinder >> /dev/null 2>&1
 elif [ ${db_name} == "kmerfinder" ]; then
-        update_kmerfinder >> /dev/null 2>&1 
+        # update_kmerfinder >> /dev/null 2>&1 
+	echo "server is down"
 elif [ ${db_name} == "metaphlan" ]; then
         update_metaphlan >> /dev/null 2>&1 
 elif [ ${db_name} == "pointfinder" ]; then
