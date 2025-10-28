@@ -150,18 +150,11 @@ update_metaphlan() {
 }
 
 # Kmerfinder
-## There is no update mechanism so we remove all the files 
+## Update mechanism - timestamp file in /home/external_databases/kmerfinder/
+## if dates in a timestamp file and a database version from https://cge.food.dtu.dk/services/KmerFinder/
+## are identical no update is carried out
 update_kmerfinder() {
-if [ -d "/home/external_databases/kmerfinder" ]; then
-        rm -rf /home/external_databases/kmerfinder/*
-else
-	mkdir /home/external_databases/kmerfinder/
-fi
-cd /tmp
-git clone https://bitbucket.org/genomicepidemiology/kmerfinder_db.git
-cd kmerfinder_db/
-bash INSTALL.sh /home/external_databases/kmerfinder/ bacteria
-
+    python3  /home/update/download_kmerfinder_db.py -o /home/external_databases/kmerfinder/
 }
 
 # Generic CGE updater
@@ -616,7 +609,7 @@ if [ ${db_name} == "all" ];then
 	echo "Downloading data for AMRfinder_plus at: $(date +"%H:%M %d-%m-%Y")"
 	update_amrfinder >> /dev/null 2>&1
 	echo "Downloading data for kmerfinder at: $(date +"%H:%M %d-%m-%Y")"
-	# update_kmerfinder >> /dev/null 2>&1
+	update_kmerfinder >> /dev/null 2>&1
 	echo "Downloading data for metaphlan at: $(date +"%H:%M %d-%m-%Y")"
 	update_metaphlan >> /dev/null 2>&1
 	echo "Downloading data for pointfinder at: $(date +"%H:%M %d-%m-%Y")"
@@ -658,8 +651,7 @@ elif [ ${db_name} == "nextclade" ]; then
 elif [ ${db_name} == "amrfinder_plus" ]; then
 	update_amrfinder >> /dev/null 2>&1
 elif [ ${db_name} == "kmerfinder" ]; then
-        # update_kmerfinder >> /dev/null 2>&1 
-	echo "server is down"
+        update_kmerfinder >> /dev/null 2>&1 
 elif [ ${db_name} == "metaphlan" ]; then
         update_metaphlan >> /dev/null 2>&1 
 elif [ ${db_name} == "pointfinder" ]; then

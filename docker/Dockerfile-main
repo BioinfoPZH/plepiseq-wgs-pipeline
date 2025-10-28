@@ -540,7 +540,7 @@ RUN wget https://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/2.15.0/ncbi-blast
 ENV PATH="/blast/bin/:$PATH"
 
 # install missing python packages
-RUN pip install requests Bio click 
+RUN pip install requests Bio click lxml bs4 
 
 # install kma 
 RUN cd /home; git clone https://bitbucket.org/genomicepidemiology/kma.git; cd kma ; make; cd /home
