@@ -83,7 +83,7 @@ docker build -f docker/Dockerfile-bacteria -t pzh_pipeline_bacterial_main:latest
    docker pull staphb/prokka:latest
    ```
 5. **External DBs** – already downloaded in *Quick start*; update regularly (see below).
-
+6. Create nextflow config (consult documentation §2.1.6)
 ---
 
 ## Running the pipelines
@@ -162,7 +162,7 @@ Individual DBs can be refreshed with `--database pangolin`, `--database kraken2`
 ## Hardware guidelines
 
 * **CPU** – pipeline scales horizontally; more cores shorten multi‑sample runs.
-* **GPU** – AlphaFold2 is the only GPU step; a GPU with 80 GB RAM is required.
+* **GPU** – AlphaFold2 is the only step requiring GPU; a GPU with 80 GB RAM is required. 
 * **RAM** – Kraken2 standard DB needs ≈ 80 GB RAM per concurrent sample.
 * **Disk I/O** – fast NVMe or tmpfs for `work/` and DB path strongly advised.
 
@@ -190,3 +190,9 @@ This repository is released under the **MIT License** (see `LICENSE` file).
 
 The current version of this pipeline is stored in the `VERSION` file at the root of this repository.
 
+
+## Skipping AlphaFold (no GPU mode)
+
+Both the bacterial and viral pipelines include an AlphaFold2-based protein structure prediction step. By default this step runs and requires a GPU and the docker image with AlphaFold2 program.
+
+You can disable this step by running the wrapper scripts with the `--no-alphafold` flag.
