@@ -96,7 +96,7 @@ usage() {
     echo "  --primers_id VALUE              Name of amplicon schema used to amplify genetic materia"
     echo "                                  Nazwa schematu amplikonów użyta w eksperymencie"
     echo "                                  Akceptowane wartosci to EQA2023.SARS1 EQA2023.SARS2 EQA2024.V4_1 EQA2024.V5_3 V1 V1200"
-    echo "                                  V2 V3 V4 V4.1 V5.3.2 VarSkip2 (dla SARS-CoV-2)"
+    echo "                                  V2 V3 V4 V4.1 V5.3.2 VarSkip2 VarSkip2b VarSkip1a VarSkip_long_1a (dla SARS-CoV-2)"
     echo "                                  V0 V1 (dla RSV)"    
     echo "  --species VALUE                 Name of the virus that underwent sequencing"
     echo "                                  Nazwa wirusa poddanego sekwencjonowaniu"
@@ -139,7 +139,7 @@ show_all_parameters() {
     echo "  --primers_id VALUE              Name of amplicon schema used to amplify genetic materia"
     echo "                                  Nazwa schematu amplikonów użyta w eksperymencie"
     echo "                                  Akceptowane wartosci to EQA2023.SARS1 EQA2023.SARS2 EQA2024.V4_1 EQA2024.V5_3 V1 V1200"
-    echo "                                  V2 V3 V4 V4.1 V5.3.2 VarSkip2 (dla SARS-CoV-2)"
+    echo "                                  V2 V3 V4 V4.1 V5.3.2 VarSkip2 VarSkip2b VarSkip1a VarSkip_long_1a (dla SARS-CoV-2)"
     echo "                                  V0 V1 (dla RSV)"
     echo "  --species VALUE                 Name of the virus that underwent sequencing"
     echo "                                  Nazwa wirusa poddanego sekwencjonowaniu"
@@ -530,7 +530,7 @@ fi
 
 # Check primers
 CORRECT_ID=0
-ALL_PRIMERS=(EQA2023.SARS1 EQA2023.SARS2 EQA2024.V4_1 EQA2024.V4_1.nanopore EQA2024.V5_3 V1 V1200 V2 V3 V4 V4.1 V5.3.2 VarSkip2 V0 V5.4.2)
+ALL_PRIMERS=(EQA2023.SARS1 EQA2023.SARS2 EQA2024.V4_1 EQA2024.V4_1.nanopore EQA2024.V5_3 V1 V1200 V2 V3 V4 V4.1 V5.3.2 VarSkip2 V0 V5.4.2 VarSkip2b VarSkip1a VarSkip_long_1a)
 for var in ${ALL_PRIMERS[@]}; do
     if [ ${primers_id} == ${var} ];then
            CORRECT_ID=1

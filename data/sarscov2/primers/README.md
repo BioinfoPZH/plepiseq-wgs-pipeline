@@ -20,10 +20,17 @@ Directories:
 
 contain primers used in EQA tests according to the names they had there.
 
-VarSkip2 - scheme used by the NEBNext VarSkip Short v2 protocol, downloaded from
-[https://github.com/nebiolabs/VarSkip/blob/main/neb_vss2a.primer.bed](https://github.com/nebiolabs/VarSkip/blob/main/neb_vss2a.primer.bed),
-has been corrected and adapted to our pipeline. Therefore, it is DIFFERENT than in the repo for
-nanopore data.
+# VarSkip
+Two "versions" of primers can be found in https://github.com/nebiolabs/VarSkip/tree/main?tab=readme-ov-file repo. One version is in /root directory, the 
+othe in schemes/NEB_VarSkip subdirectory. The latter seems to be designed to work with artic pipeline (no alt in primers name, changed reference name). 
+Primers location for a fiven VarSkip version seems to be identical (beside VarSkip_long_1a). Below are the links of the source file used by us. As always
+these primers adjusted to work with out pipeline (amplicons are extended by 1bp) + adjusted names of primers, reference name, pool name etc. 
+
+VarSkip2 - also known as Varskip2a https://github.com/nebiolabs/VarSkip/blob/main/neb_vss2a.primer.bed
+VarSkip_long_1a -> https://github.com/nebiolabs/VarSkip/blob/main/schemes/NEB_VarSkip/V1a-long/NEB_VarSkip.scheme.bed (NOTE this scheme is different than https://github.com/nebiolabs/VarSkip/blob/main/neb_vsl1a.primer.bed e.g. there are no "MISPRIME" not sure which version is actually correct)
+VarSkip1a -> https://github.com/nebiolabs/VarSkip/blob/main/neb_vss1a.primer.bed
+VarSkip2b -> https://github.com/nebiolabs/VarSkip/blob/main/neb_vss2b.primer.bed
+
 
 obserco_extra - directory with primers used in PZH as part of the obserco grant, it is in fact
 midnight1200 with added extra primers, but most of these additions have different sequences but map
