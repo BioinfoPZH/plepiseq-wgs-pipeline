@@ -23,6 +23,9 @@ alphafold_image="alphafold2:latest"
 ## Nextflow executor
 profile="local"
 
+# Run alpfafold
+run_alphafold="true"
+
 # Parmaters related to resources available to the pipeline (max PER sample) if N samples are analyzed the pipeline will use at most N times more resuorces
 # For testing purpose can be change, but for production invariable
 threads=40
@@ -153,6 +156,8 @@ show_all_parameters() {
     echo "                                  Minimalne bezwzgledne pokrycie wymagan dla contigu."
     echo "  --model_medaka VALUE            Model used by medaka to polish pilon-proposed assebmly (default: r941_min_hac_g507, this model is still recommended even for R10 flow cell)"
     echo "                                  Model uzywany to identyfikacji SNP/SVs w genomie proponowanym przez program pilon"
+    echo "  --no-alphafold                  Skip calculations of 3D model with alphafold"
+    echo "                                  Omin krok generowania modelu 3D z uzyciem programu alphafold"
     echo "  --all                           Display this help meassage"
     echo "                                  Wyswietl liste wszystkich parametrow modelu"
     echo "  -h, --help                      Show this help message"
@@ -160,7 +165,7 @@ show_all_parameters() {
 
 
 # Parse command-line options using GNU getopt
-OPTS=$(getopt -o h --long projectDir:,profile:,external_databases_path:,results_dir:,main_image:,prokka_image:,alphafold_image:,threads:,machine:,reads:,genus:,quality:,min_number_of_reads:,min_median_quality:,main_genus_value:,kmerfinder_coverage:,main_species_coverage:,min_genome_length:,unique_loci:,contig_number:,N50:,final_coverage:,min_coverage_ratio:,min_coverage_value:,model_medaka:,all,help -- "$@")
+OPTS=$(getopt -o h --long projectDir:,profile:,external_databases_path:,results_dir:,main_image:,prokka_image:,alphafold_image:,threads:,machine:,reads:,genus:,quality:,min_number_of_reads:,min_median_quality:,main_genus_value:,kmerfinder_coverage:,main_species_coverage:,min_genome_length:,unique_loci:,contig_number:,N50:,final_coverage:,min_coverage_ratio:,min_coverage_value:,model_medaka:,no-alphafold,all,help -- "$@")
 
 eval set -- "$OPTS"
 
@@ -272,6 +277,10 @@ while true; do
       model_medaka="$2"; 
       shift 2 
       ;;
+    --no-alphafold)
+      run_alphafold="false"
+      shift 1
+      ;;
     --all)
       show_all_parameters
       exit 0
@@ -376,5 +385,6 @@ nextflow run ${projectDir}/nf_pipeline_bacterial.nf \
 	     --L50 ${N50} \
 	     --final_coverage ${final_coverage} \
 	     --model_medaka ${model_medaka} \
+	     --run_alphafold ${run_alphafold} \
 	     -profile ${profile} \
 	     -with-trace
