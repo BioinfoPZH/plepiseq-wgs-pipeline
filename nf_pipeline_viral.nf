@@ -124,6 +124,8 @@ params.quality_for_coverage = 1 // Parametr uzywany w modul lowCov, again we are
 
 // Select language used in error msg allowed values 'en' or 'pl'
 params.lan = "pl"
+// Turn off alphafold
+params.run_alphafold = true
 
 // // Modules section 
 
@@ -288,6 +290,7 @@ include { pangolin } from "${modules}/common/pangolin.nf"
 include { nextalign } from "${modules}/common/nextalign.nf"
 include { alphafold } from "${modules}/common/alphafold.nf"
 include { alphafold_slurm } from "${modules}/common/alphafold_slurm.nf"
+include { alphafold_dummy } from "${modules}/common/alphafold_dummy.nf"
 // // End of Section // //
 
 
@@ -538,11 +541,15 @@ workflow {
   delayed_alphafold = nextalign_out.to_modeller.map {it -> sleep(20000); it} // Delay each element in channel by 20s
 
   // Alphafold under local and slurm executors 
-  if ( workflow.profile == "slurm" ) {
+  if ( params.run_alphafold  ) {
+    if ( workflow.profile == "slurm" ) {
       alphafold_out = alphafold_slurm(delayed_alphafold)
-  } else if ( workflow.profile == "local" ) {
+    } else if ( workflow.profile == "local" ) {
       alphafold_out = alphafold(delayed_alphafold)
-  }
+    }
+ } else {
+   alphafold_out = alphafold_dummy(delayed_alphafold)
+ }
   
   if ( params.species  == 'SARS-CoV-2' || params.species  == 'RSV' ) {
       nextclade_out = nextclade_noninfluenza(final_genome_out.fasta_refgenome_and_qc)
