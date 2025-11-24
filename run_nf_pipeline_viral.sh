@@ -46,6 +46,7 @@ profile="local"
 # For testing purpose can be change, but for production invariable
 threads=40
 
+run_alphafold="true"
 
 # Parameters with default values that depend on the orgasnism beeing processed
 
@@ -81,6 +82,7 @@ medaka_chunk_len=""
 medaka_chunk_overlap=""
 first_round_pval=""
 second_round_pval=""
+
 
 # Usage function to display help
 usage() {
@@ -223,12 +225,14 @@ show_all_parameters() {
     echo ""
     echo "  --results_dir PATH              Directory to store results"
     echo ""
+    echo "  --no-alphafold                  Skip calculations of 3D model with alphafold"
+    echo ""
 }
 
 
 
 # Parse arguments
-OPTIONS=$(getopt -o h --long machine:,profile:,reads:,primers_id:,species:,adapters_id:,threads:,projectDir:,external_databases_path:,main_image:,manta_image:,medaka_image:,alphafold_image:,max_number_for_SV:,variant:,min_number_of_reads:,expected_genus_value:,min_median_quality:,quality_initial:,length:,max_depth:,min_cov:,mask:,quality_snp:,pval:,lower_ambig:,upper_ambig:,window_size:,min_mapq:,quality_for_coverage:,freyja_minq:,bed_offset:,extra_bed_offset:,medaka_model:,medaka_chunk_len:,medaka_chunk_overlap:,first_round_pval:,second_round_pval:,results_dir:,min_median_for_SV:,all,help -- "$@")
+OPTIONS=$(getopt -o h --long machine:,profile:,reads:,primers_id:,species:,adapters_id:,threads:,projectDir:,external_databases_path:,main_image:,manta_image:,medaka_image:,alphafold_image:,max_number_for_SV:,variant:,min_number_of_reads:,expected_genus_value:,min_median_quality:,quality_initial:,length:,max_depth:,min_cov:,mask:,quality_snp:,pval:,lower_ambig:,upper_ambig:,window_size:,min_mapq:,quality_for_coverage:,freyja_minq:,bed_offset:,extra_bed_offset:,medaka_model:,medaka_chunk_len:,medaka_chunk_overlap:,first_round_pval:,second_round_pval:,results_dir:,min_median_for_SV:,no-alphafold,all,help -- "$@")
 
 eval set -- "$OPTIONS"
 
@@ -297,10 +301,10 @@ while true; do
             max_number_for_SV="$2"
             shift 2
             ;;
-	--min_median_for_SV)
-	    min_median_for_SV="$2"
-	    shift 2
-	    ;;
+	      --min_median_for_SV)
+	         min_median_for_SV="$2"
+	         shift 2
+	         ;;
         --variant)
             variant="$2"
             shift 2
@@ -397,13 +401,17 @@ while true; do
             second_round_pval="$2"
             shift 2
             ;;
-	--results_dir)
+	      --results_dir)
             results_dir="$2"
             shift 2
             ;;
+        --no-alphafold)
+            run_alphafold="false"
+            shift 1
+            ;;
         --all)
             show_all_parameters
-	    exit 0
+	          exit 0
             ;;
         -h|--help)
             usage
@@ -577,6 +585,7 @@ nextflow run ${projectDir}/nf_pipeline_viral.nf \
     --first_round_pval ${first_round_pval} \
     --second_round_pval ${second_round_pval} \
     --min_median_for_SV ${min_median_for_SV} \
+    --run_alphafold ${run_alphafold} \
     -profile ${profile} \
     -with-trace
 

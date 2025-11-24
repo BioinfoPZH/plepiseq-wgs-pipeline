@@ -49,6 +49,8 @@ if ( !workflow.profile || ( workflow.profile != "slurm" && workflow.profile != "
 // Select language used in error msg allowed values 'en' or 'pl'
 params.lan = "pl"
 
+// Turn off alphafold
+params.run_alphafold = true
 
 // Processes 
 process run_fastqc_illumina {
@@ -2627,6 +2629,36 @@ process run_alphafold_slurm {
 
 }
 
+process run_alphafold_dummy {
+    tag "Alphafold for sample ${x}"
+    cpus { params.threads > 1 ? 1 : params.threads }
+    memory "100 MB"
+    time "2m"
+    container  = params.main_image
+    publishDir "${params.results_dir}/${x}/", mode: 'copy', pattern: "${x}_gyrase_complex.pdb"
+    input:
+    tuple val(x), path(gff), path(faa), path(ffn), path(tsv), val(SPECIES), val(GENUS), val(QC_status), val(QC_status_contaminations)
+
+    output:
+    tuple val(x), path("${x}*.pdb"), emit: to_pubdir // return any number of pdbs produce by this module
+    tuple val(x), path('alphafold.json'), emit: json
+
+
+    script:
+    """
+    touch ${x}.pdb
+    if [ "${params.lan}" == "pl" ]; then
+        ERR_MSG="Pipeline zostal uruchomiony z flaga no-alphafold. Brak generacji modelu."
+    else
+        ERR_MSG="Pipeline was executed with no-alphafold flag. No results are created."
+    fi
+
+   echo -e "{\\"status\\":\\"nie\\",
+             \\"error_message\\": \\"\${ERR_MSG}\\"}" >> alphafold.json
+
+    """
+ }
+
 process run_plasmidfinder {
   container  = params.main_image
   containerOptions "--volume ${params.db_absolute_path_on_host}:/db"
@@ -3870,11 +3902,15 @@ run_seqsero_out = run_Seqsero(final_assembly_with_species)
 run_sistr_out = run_sistr(final_assembly_with_species)
 
 // Alphafold
-if ( workflow.profile == "slurm" ) {
+if ( params.run_alphafold  ) {
+  if ( workflow.profile == "slurm" ) {
     alphafold_out = run_alphafold_slurm(prokka_out.prokka_all)
-} else if ( workflow.profile == "local" ) {
-    delayed_alphafold = prokka_out.prokka_all.map {it -> sleep(20000); it}
-    alphafold_out = run_alphafold(delayed_alphafold)
+  } else if ( workflow.profile == "local" ) {
+      delayed_alphafold = prokka_out.prokka_all.map {it -> sleep(20000); it}
+      alphafold_out = run_alphafold(delayed_alphafold)
+  }
+} else {
+   alphafold_out = run_alphafold_dummy(prokka_out.prokka_all)
 }
 
 // Aggregate all modules that emit json 
