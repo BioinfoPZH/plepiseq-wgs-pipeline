@@ -17,6 +17,22 @@
 # For simplicity we do NOT test arguments of options I-IV
 # Options from V-VIII have predefined values based on default installation of the pipeline from the documentation
 
+# Single source of truth for all supported primer schemes
+# SARS-CoV-2 primers
+SARSCOV2_PRIMERS=(EQA2023.SARS1 EQA2023.SARS2 EQA2024.V4_1 EQA2024.V4_1.nanopore EQA2024.V5_3 V1 V1200 V2 V3 V4 V4.1 V5.3.2 V5.4.2 VarSkip2 VarSkip2b VarSkip1a VarSkip_long_1a)
+# RSV primers  
+RSV_PRIMERS=(V0 V1)
+# Combined list for validation
+ALL_PRIMERS=("${SARSCOV2_PRIMERS[@]}" "${RSV_PRIMERS[@]}")
+
+# Helper function to format primers list for help text
+get_primers_help_text() {
+    local sarscov2_list="${SARSCOV2_PRIMERS[*]}"
+    local rsv_list="${RSV_PRIMERS[*]}"
+    echo "                                  Akceptowane wartosci to ${sarscov2_list} (dla SARS-CoV-2)"
+    echo "                                  ${rsv_list} (dla RSV)"
+}
+
 # Parameters I-IV without DEFAULTS that MUST be specified by a user (adapters_id) is an execpetion
 machine="" # Only Nanopore or Illumina
 reads="" # Existing path
@@ -84,20 +100,17 @@ first_round_pval=""
 second_round_pval=""
 
 
-# Usage function to display help
-usage() {
-    echo "Usage/Wywolanie: $0 --machine [Nanopore|Illumina] --reads PATH --primers_id VALUE --species [SARS-CoV-2|Influenza|RSV] [options]"
+# Helper function to display common parameters shared between usage() and show_all_parameters()
+show_common_parameters() {
     echo "Required parameters/Parametry wymagane:"
-    echo "  --machine VALUE                Sequencing platform: Nanopore or Illumina"
+    echo "  --machine VALUE                 Sequencing platform: Nanopore or Illumina"
     echo "                                  Platforma sekwencjonujaca uzyta do analizy. Mozliwe wartosci to Nanopore albo Illumina"
     echo "  --reads PATH                    Path to sequencing data with naming pattern for sequencing files. Use single quotes for this argument"
     echo "                                  Scieżka do katalogu z wynikami sekwencjonowania wraz z wzorcem nazewnictwa plików"
     echo "                                  Format plikow: fastq.gz, Przyklad: '/some/directory/*_R{1,2}.fastq.gz'"
     echo "  --primers_id VALUE              Name of amplicon schema used to amplify genetic materia"
     echo "                                  Nazwa schematu amplikonów użyta w eksperymencie"
-    echo "                                  Akceptowane wartosci to EQA2023.SARS1 EQA2023.SARS2 EQA2024.V4_1 EQA2024.V5_3 V1 V1200"
-    echo "                                  V2 V3 V4 V4.1 V5.3.2 VarSkip2 VarSkip2b VarSkip1a VarSkip_long_1a (dla SARS-CoV-2)"
-    echo "                                  V0 V1 (dla RSV)"    
+    get_primers_help_text
     echo "  --species VALUE                 Name of the virus that underwent sequencing"
     echo "                                  Nazwa wirusa poddanego sekwencjonowaniu"
     echo "                                  Akceptowane wartosci to SARS-CoV-2 Influenza RSV"
@@ -127,47 +140,16 @@ usage() {
     echo "  -h, --help                      Show this help message"
 }
 
+# Usage function to display help
+usage() {
+    echo "Usage/Wywolanie: $0 --machine [Nanopore|Illumina] --reads PATH --primers_id VALUE --species [SARS-CoV-2|Influenza|RSV] [options]"
+    show_common_parameters
+}
+
 # Full help
 show_all_parameters() {
     echo "Usage/Wywolanie: $0 --machine [Nanopore|Illumina] --reads PATH --primers_id VALUE --species [SARS-CoV-2|Influenza|RSV] --projectDir PATH --external_databases_path PATH --main_image VALUE --manta_image VALUE --medaka_image VALUE --alphafold_image VALUE [options]"
-    echo "Required parameters/Parametry wymagane:"
-    echo "  --machine VALUE                 Sequencing platform: Nanopore or Illumina"
-    echo "                                  Platforma sekwencjonujaca uzyta do analizy. Mozliwe wartosci to Nanopore albo Illumina"
-    echo "  --reads PATH                    Path to sequencing data with naming pattern for sequencing files. Use single quotes for this argument"
-    echo "                                  Scieżka do katalogu z wynikami sekwencjonowania wraz z wzorcem nazewnictwa plików"
-    echo "                                  Format plikow: fastq.gz, Przyklad: '/some/directory/*_R{1,2}.fastq.gz'"
-    echo "  --primers_id VALUE              Name of amplicon schema used to amplify genetic materia"
-    echo "                                  Nazwa schematu amplikonów użyta w eksperymencie"
-    echo "                                  Akceptowane wartosci to EQA2023.SARS1 EQA2023.SARS2 EQA2024.V4_1 EQA2024.V5_3 V1 V1200"
-    echo "                                  V2 V3 V4 V4.1 V5.3.2 VarSkip2 VarSkip2b VarSkip1a VarSkip_long_1a (dla SARS-CoV-2)"
-    echo "                                  V0 V1 (dla RSV)"
-    echo "  --species VALUE                 Name of the virus that underwent sequencing"
-    echo "                                  Nazwa wirusa poddanego sekwencjonowaniu"
-    echo "                                  Akceptowane wartosci to SARS-CoV-2 Influenza RSV"
-    echo "  --projectDir PATH               Sciezka do katalogu z pobranym repozytorium"
-    echo "                                  Directory with projects repository"
-    echo "  --external_databases_path PATH  Sciezka do katalogu z pobranymi zewnetrznymi bazami"
-    echo "                                  Directory with all databases used by the program"
-    echo "  --main_image VALUE              Nazwa obrazu w formacie \"name:tag\" z obrazem zawierajacym programy uzywane przez pipeline"
-    echo "                                  Name of the docker image with main program"
-    echo "  --manta_image VALUE             Nazwa obrazu w formacie \"name:tag\" z obrazem zawierajacym program manta. Uzywana tylko w przypadku gdy parametr machine to Illumina"
-    echo "                                  Name of the docker image with manta program, used only when processing Illumina data"
-    echo "  --medaka_image VALUE            Nazwa obrazu w formacie \"name:tag\" z obrazem zawierajacym program medaka. Uzywana tylko w przypadku gdy parametr machine to Nanopore"
-    echo "                                  Name of the docker image with medaka program required to process Nanopore data"
-    echo "  --alphafold_image VALUE         Nazwa obrazu w formacie \"name:tag\" z obrazem zawierajacym program alphafold"
-    echo "                                  Name of the docker image with alphafold program"
-    echo "Optional parameters:"
-    echo "  --adapters_id VALUE             Adapters used during Illumina-based sequencing (default: $adapters_id)"
-    echo "                                  Nazwa adapterow stosowanych podczas sekwencjonowania z wykorzysyniem platformy Illumina"
-    echo "                                  Akceptowane wartosci NexteraPE-PE TruSeq2-PE TruSeq2-SE TruSeq3-PE-2 TruSeq3-PE TruSeq3-SE"
-    echo "  --threads VALUE                 Thread count (default: $threads)"
-    echo "                                  Maksymalna ilosci CPU uzywana do analizy pojedycznej probki"
-    echo "  --profile VALUE                 Nazwa profile zdefiniowanego w pliku konfiguaracyjnym nextflow z informacja o executor"
-    echo "                                  Name of the profile specified in the nextflow configuration file."
-    echo "                                  Available values: \"local\" and \"slurm\". Default value \"local\"."
-    echo "  --all                           Display hidden parameters for advanced configuration"
-    echo "                                  Wyswietl liste wszystkich parametrow modelu"
-    echo "  -h, --help                      Show this help message"
+    show_common_parameters
     echo ""
     echo "Pipeline parameters:"
     echo "All of them have predefined values, modify at your own peril"
@@ -530,7 +512,6 @@ fi
 
 # Check primers
 CORRECT_ID=0
-ALL_PRIMERS=(EQA2023.SARS1 EQA2023.SARS2 EQA2024.V4_1 EQA2024.V4_1.nanopore EQA2024.V5_3 V1 V1200 V2 V3 V4 V4.1 V5.3.2 VarSkip2 V0 V5.4.2 VarSkip2b VarSkip1a VarSkip_long_1a)
 for var in ${ALL_PRIMERS[@]}; do
     if [ ${primers_id} == ${var} ];then
            CORRECT_ID=1
