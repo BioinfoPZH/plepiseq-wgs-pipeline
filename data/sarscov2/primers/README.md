@@ -21,26 +21,61 @@ Directories:
 contain primers used in EQA tests according to the names they had there.
 
 # VarSkip
-Two "versions" of primers can be found in https://github.com/nebiolabs/VarSkip/tree/main?tab=readme-ov-file repo. One version is in /root directory, the 
-othe in schemes/NEB_VarSkip subdirectory. The latter seems to be designed to work with artic pipeline (no alt in primers name, changed reference name). 
-Primers location for a fiven VarSkip version seems to be identical (beside VarSkip_long_1a). Below are the links of the source file used by us. As always
-these primers adjusted to work with out pipeline (amplicons are extended by 1bp) + adjusted names of primers, reference name, pool name etc. 
 
-VarSkip2 - also known as Varskip2a https://github.com/nebiolabs/VarSkip/blob/main/neb_vss2a.primer.bed
-VarSkip_long_1a -> https://github.com/nebiolabs/VarSkip/blob/main/schemes/NEB_VarSkip/V1a-long/NEB_VarSkip.scheme.bed (NOTE this scheme is different than https://github.com/nebiolabs/VarSkip/blob/main/neb_vsl1a.primer.bed e.g. there are no "MISPRIME" not sure which version is actually correct)
-VarSkip1a -> https://github.com/nebiolabs/VarSkip/blob/main/neb_vss1a.primer.bed
-VarSkip2b -> https://github.com/nebiolabs/VarSkip/blob/main/neb_vss2b.primer.bed
+The VarSkip primer sets are alternative amplicon schemes developed by New England Biolabs (NEB) for SARS-CoV-2 
+whole genome sequencing. They offer an alternative to the ARTIC primers and are optimized for different use cases.
+
+## Source Repository
+
+Two "versions" of primers can be found in the [NEB VarSkip repository](https://github.com/nebiolabs/VarSkip/tree/main):
+
+1. **Root directory version** - original BED files with primer coordinates
+2. **schemes/NEB_VarSkip subdirectory** - reformatted for ARTIC pipeline compatibility (no "alt" suffix in primer names, standardized reference name)
+
+Primer coordinates for a given VarSkip version are identical between both formats (except VarSkip_long_1a).
+
+## Which Version to Choose?
+
+| Primer Set | Amplicon Size | Use Case |
+|------------|--------------|----------|
+| **VarSkip1a** | Short (~400bp) | Standard Illumina sequencing |
+| **VarSkip2** (VarSkip2a) | Short (~400bp) | Updated version of VarSkip1a with improved coverage |
+| **VarSkip2b** | Short (~400bp) | Alternative to VarSkip2a with slight primer modifications |
+| **VarSkip_long_1a** | Long (~1200bp) | Oxford Nanopore sequencing or when longer amplicons are preferred |
+
+For most Illumina users, **VarSkip2** (also known as VarSkip2a) is recommended as it provides good genome coverage 
+with improved primer design compared to version 1.
+
+## Source Files
+
+- **VarSkip2** (also known as VarSkip2a): https://github.com/nebiolabs/VarSkip/blob/main/neb_vss2a.primer.bed
+- **VarSkip_long_1a**: https://github.com/nebiolabs/VarSkip/blob/main/schemes/NEB_VarSkip/V1a-long/NEB_VarSkip.scheme.bed 
+  (NOTE: this scheme differs from https://github.com/nebiolabs/VarSkip/blob/main/neb_vsl1a.primer.bed - e.g., no "MISPRIME" entries)
+- **VarSkip1a**: https://github.com/nebiolabs/VarSkip/blob/main/neb_vss1a.primer.bed
+- **VarSkip2b**: https://github.com/nebiolabs/VarSkip/blob/main/neb_vss2b.primer.bed
+
+## Conversion Steps
+
+All primers in this directory have been adjusted to work with our pipeline. For details on the standard conversion 
+process (extending amplicons by 1bp, standardizing primer names, reference names, pool names, etc.), see the 
+[Pipeline Customization documentation](../../../doc/topics/Pipeline-customization.md) - specifically the "Primers" section 
+which describes BED file format requirements and naming conventions.
 
 
-obserco_extra - directory with primers used in PZH as part of the obserco grant, it is in fact
-midnight1200 with added extra primers, but most of these additions have different sequences but map
-to the same genomic region as the original primer.
+## Other Primer Sets
 
-It should be noted that ALL primers in this directory (save EQA2024.V4_1.nanopore) are "artificially" extended so that the
-amplicon is 1bp longer in the 5' and 3' directions. This allows `ivar` to properly mask reads that
-map just 1bp beyond their amplicon. This additional nucleotide should not biologically occur, but I
-attribute this to an Illumina error
+**obserco_extra** - directory with primers used in PZH as part of the obserco grant. It is based on 
+midnight1200 with additional primers, but most of these additions have different sequences yet map
+to the same genomic regions as the original primers.
 
-Temporarily nanopore primers for sars will have .nanopore extension in directory name, the directory should contain a single .bed file, and the "pairs.tsv". The pairs file is NOT required
-required by the pipeline and can be empty, but is required by nexflow modules that are shared between nanopore and illumina
+## Important Notes
+
+- ALL primers in this directory (except EQA2024.V4_1.nanopore) are "artificially" extended so that the
+  amplicon is 1bp longer in the 5' and 3' directions. This allows `ivar` to properly mask reads that
+  map just 1bp beyond their amplicon. This additional nucleotide should not biologically occur, but 
+  is attributed to an Illumina sequencing artifact.
+
+- Nanopore primers for SARS have a `.nanopore` extension in the directory name. Each directory should 
+  contain a single `.bed` file and a `pairs.tsv` file. The pairs file is not required by the pipeline 
+  (it can be empty), but is needed by Nextflow modules that are shared between Nanopore and Illumina workflows.
 
