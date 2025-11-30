@@ -496,7 +496,7 @@ elif [[ "$machine" == "Nanopore" ]]; then
 	[[ -z "${quality_for_coverage}" ]] && quality_for_coverage=1
 
 else
-    echo "Error: Unsupported sequencinf platform: $machine. Supported values are: Nanopore, Illumina."
+    echo "Error: Unsupported sequencing platform: $machine. Supported values are: Nanopore, Illumina."
     exit 1
 fi
 

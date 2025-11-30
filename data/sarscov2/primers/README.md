@@ -58,7 +58,8 @@ with improved primer design compared to version 1.
 
 All primers in this directory have been adjusted to work with our pipeline. For details on the standard conversion 
 process (extending amplicons by 1bp, standardizing primer names, reference names, pool names, etc.), see the 
-[Pipeline Customization documentation](../../../doc/topics/Pipeline-customization.md), section B.3.
+[Pipeline Customization documentation](../../../doc/topics/Pipeline-customization.md) - specifically the "Primers" section 
+which describes BED file format requirements and naming conventions.
 
 
 ## Other Primer Sets
