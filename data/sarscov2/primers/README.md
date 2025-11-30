@@ -34,18 +34,6 @@ Two "versions" of primers can be found in the [NEB VarSkip repository](https://g
 
 Primer coordinates for a given VarSkip version are identical between both formats (except VarSkip_long_1a).
 
-## Which Version to Choose?
-
-| Primer Set | Amplicon Size | Use Case |
-|------------|--------------|----------|
-| **VarSkip1a** | Short (~400bp) | Standard Illumina sequencing |
-| **VarSkip2** (VarSkip2a) | Short (~400bp) | Updated version of VarSkip1a with improved coverage |
-| **VarSkip2b** | Short (~400bp) | Alternative to VarSkip2a with slight primer modifications |
-| **VarSkip_long_1a** | Long (~1200bp) | Oxford Nanopore sequencing or when longer amplicons are preferred |
-
-For most Illumina users, **VarSkip2** (also known as VarSkip2a) is recommended as it provides good genome coverage 
-with improved primer design compared to version 1.
-
 ## Source Files
 
 - **VarSkip2** (also known as VarSkip2a): https://github.com/nebiolabs/VarSkip/blob/main/neb_vss2a.primer.bed
