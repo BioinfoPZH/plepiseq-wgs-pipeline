@@ -568,7 +568,7 @@ update_phiercc() {
 # Uniref50 and Uniref50 for Virual sequences used by alphafold
 ## No update mechanism
 update_alphafold() {
-	if [ -d "/home/external_databases/alphafold/uniref_viruses" ]; then
+	if [ -d "/home/external_databases/alphafold/uniref50" ]; then
 		rm -rf /home/external_databases/alphafold/uniref50/*
 	else
 		mkdir -p /home/external_databases/alphafold/uniref50/
