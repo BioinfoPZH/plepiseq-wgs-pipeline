@@ -485,15 +485,15 @@ elif [[ "$machine" == "Nanopore" ]]; then
 	[[ -z "${min_median_quality}" ]] && min_median_quality=0
 	[[ -z "${quality_initial}" ]] && quality_initial=2
 	[[ -z "${max_depth}" ]] && max_depth=600
-        [[ -z "${min_cov}" ]] && min_cov=50
-        [[ -z "${mask}" ]] && mask=50
-        [[ -z "${quality_snp}" ]] && quality_snp=5
-        [[ -z "${pval}" ]] && pval=0.05
-	[[ -z "${first_round_pval}" ]] && first_round_pval=0.05
+  [[ -z "${min_cov}" ]] && min_cov=50
+  [[ -z "${mask}" ]] && mask=50
+  [[ -z "${quality_snp}" ]] && quality_snp=5
+  [[ -z "${pval}" ]] && pval=0.05
+	[[ -z "${first_round_pval}" ]] && first_round_pval=0.25
 	[[ -z "${second_round_pval}" ]] && second_round_pval=0.05
-        [[ -z "${lower_ambig}" ]] && lower_ambig=0.45
-        [[ -z "${upper_ambig}" ]] && upper_ambig=0.55
-        [[ -z "${window_size}" ]] && window_size=50
+  [[ -z "${lower_ambig}" ]] && lower_ambig=0.45
+  [[ -z "${upper_ambig}" ]] && upper_ambig=0.55
+  [[ -z "${window_size}" ]] && window_size=50
 	[[ -z "${quality_for_coverage}" ]] && quality_for_coverage=1
 
 else
