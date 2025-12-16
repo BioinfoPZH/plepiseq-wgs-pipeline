@@ -10,7 +10,7 @@
 
 # localization of the main file with the pipeline and databases required to execute this pipeline
 ## Existing directories, for testing purpose can be change. but for production invariable
-projectDir="/home/michall/git/pzh_pipeline_viral/"
+projectDir=""
 external_databases_path="/mnt/raid/external_databases"
 results_dir="./results" 
 
@@ -154,7 +154,7 @@ show_all_parameters() {
     echo "                                  Minimalne pokrycie dla probki liczone z wykorzystaniem ostatecznenie zapropnowanej sekwencji enomu"
     echo "  --min_coverage_value VALUE      Minimal absolute coverage for a contig to pass filtering (default: 20). NOT IMPLEMENTED."
     echo "                                  Minimalne bezwzgledne pokrycie wymagan dla contigu."
-    echo "  --model_medaka VALUE            Model used by medaka to polish pilon-proposed assebmly (default: r941_min_hac_g507, this model is still recommended even for R10 flow cell)"
+    echo "  --model_medaka VALUE            Model used by medaka to polish flye-proposed assebmly (default: r941_min_hac_g507, this model is still recommended even for R10 flow cell)"
     echo "                                  Model uzywany to identyfikacji SNP/SVs w genomie proponowanym przez program pilon"
     echo "  --no-alphafold                  Skip calculations of 3D model with alphafold"
     echo "                                  Omin krok generowania modelu 3D z uzyciem programu alphafold"
