@@ -1,3 +1,0 @@
-alphafold2 dockerfile that
-1. works on a100, testing alphafold on compute is pointless it just takes too much time
-2. compute has outdated cuda drivers it is possible to however build alphafold2 using older version of a repo, consult ~mkadlof/alphafold directory on compute
