@@ -130,7 +130,7 @@ show_common_parameters() {
     echo "  --adapters_id VALUE             Adapters used during Illumina-based sequencing (default: $adapters_id)"
     echo "                                  Nazwa adapterow stosowanych podczas sekwencjonowania z wykorzysyniem platformy Illumina"
     echo "                                  Akceptowane wartosci NexteraPE-PE TruSeq2-PE TruSeq2-SE TruSeq3-PE-2 TruSeq3-PE TruSeq3-SE"
-    echo "  --threads VALUE                 Thread count (default: $threads)"
+    echo "  --threads VALUE                 Maximum number of CPUs allocated to a single module within Nextflow. (default: $threads)"
     echo "                                  Maksymalna ilosci CPU uzywana do analizy pojedycznej probki"
     echo "  --profile VALUE                 Nazwa profile zdefiniowanego w pliku konfiguaracyjnym nextflow z informacja o executor"
     echo "                                  Name of the profile specified in the nextflow configuration file."
@@ -151,61 +151,62 @@ show_all_parameters() {
     echo "Usage/Wywolanie: $0 --machine [Nanopore|Illumina] --reads PATH --primers_id VALUE --species [SARS-CoV-2|Influenza|RSV] --projectDir PATH --external_databases_path PATH --main_image VALUE --manta_image VALUE --medaka_image VALUE --alphafold_image VALUE [options]"
     show_common_parameters
     echo ""
-    echo "Pipeline parameters:"
-    echo "All of them have predefined values, modify at your own peril"
-    echo "  --max_number_for_SV VALUE       Maximum number of reads used to predict SVs with manta (depends on species)"
+    echo "  --max_number_for_SV VALUE       Maximum number of reads used to predict SVs with Manta. Default value depends on species – 200_000 for SARS-CoV-2,"
+    echo "                                  100_000 for RSV and 10_000 for Influenza"
     echo ""
     echo "  --min_median_for_SV VALUE       Minimum median coverage for a segment required for SVs calling with manta (default 50)"
     echo ""
     echo "  --variant VALUE                 Name of the expected influenza subtpye (e.g. H5N1). If unkown set up this value to UNK to auto-detect the subtype"
     echo ""
-    echo "  --min_number_of_reads VALUE     Minimum number of reads present if fastq file for program to execute (depends on machine)"
+    echo "  --min_number_of_reads VALUE     Minimum number of reads present if fastq file for program to execute. Defualt: 1"
     echo ""
-    echo "  --expected_genus_value VALUE    Percentage of reads associated with genus. Sample where percantage of reads fall below this threshold will not be analyzed."
+    echo "  --expected_genus_value VALUE    Percentage of reads associated with genus. Sample where percantage of reads fall below this threshold will not be analyzed. Defautlt 5%"
     echo ""
-    echo "  --min_median_quality VALUE      Minimum median quality of bases for reads to be analyzed with fastqc"
+    echo "  --min_median_quality VALUE      Minimum median quality of bases for reads to be analyzed with fastqc. Default: 0"
     echo ""
-    echo "  --quality_initial VALUE         Bases at 5' and 3' ends of reads are trimmed if their quality is below this value"
+    echo "  --quality_initial VALUE         Bases at 5' and 3' ends of reads are trimmed if their quality is below this value. Defaults: 5 for Illumina, 2 for Nanopore"
     echo ""
-    echo "  --length VALUE                  Minimal length of the read after quality trimming to be used in the analysis"
+    echo "  --length VALUE                  Minimal length of the read after quality trimming to be used in the analysis. Default: 90 for Illumina, 49% of the initial read"
+    echo "                                  length for Nanopore."
     echo ""
-    echo "  --max_depth VALUE               Expected coverage after coverage equalization"
+    echo "  --max_depth VALUE               Expected coverage after coverage equalization. Default: 600"
     echo ""
-    echo "  --min_cov VALUE                 Minimum value for coverage at a position required to identify SNPs/INDELs"
+    echo "  --min_cov VALUE                 Minimum value for coverage at a position required to identify SNPs/INDELs. Defaults: 20 for Illumina, 50 for Nanopore"
     echo ""
-    echo "  --mask VALUE                    Maximum value for coverage value to mask low coverage regions with 'N'"
+    echo "  --mask VALUE                    Maximum value for coverage value to mask low coverage regions with 'N'. Defaults: 20 for Illumina, 50 for Nanopore"
     echo ""
-    echo "  --quality_snp VALUE             Minimum value for nucleotide quality  (Phred + 33) used during SNPs/INDELs/SVs calling"
+    echo "  --quality_snp VALUE             Minimum value for nucleotide quality  (Phred + 33) used during SNPs/INDELs/SVs calling. Defaults: 15 for Illumina, 5 for Nanopore."
     echo ""
-    echo "  --pval VALUE                    p-value to determine if a variant is significant"
+    echo "  --pval VALUE                    p-value threshold to determine if a variant is significant for Illumina data. Default: 0.05"
     echo ""
-    echo "  --lower_ambig VALUE             Minimum ratio of reads carrying a minor allele to introduce ambiguity at a given position"
+    echo "  --lower_ambig VALUE             Minimum ratio of reads carrying a minor allele at a given position above which ambiguous symbol can be introduced. Default: 0.45"
     echo ""
-    echo "  --upper_ambig VALUE             Minimum ratio of reads carrying a minor allele above which ambiguity symbol is not introduced at a given position"
+    echo "  --upper_ambig VALUE             Maximum ratio of reads carrying a minor allele at a given position below which ambiguous symbol can be introduced. Default: 0.55"
     echo ""
-    echo "  --window_size VALUE             Window size used during coverage equalization procedure"
+    echo "  --window_size VALUE             Window size used during coverage equalization. Default: 50"
     echo ""
-    echo "  --min_mapq VALUE                Minimum mapping quality of a read to a reference genome"
+    echo "  --min_mapq VALUE                Window size used during coverage equalization. Default: 30"
     echo ""
-    echo "  --quality_for_coverage VALUE    Minimum value for nucleotide quality  (Phred + 33) considered during determination of low coverage regions"
+    echo "  --quality_for_coverage VALUE    Minimum value for nucleotide quality  (Phred + 33) considered during determination of low coverage regions. Defaults: 10 for"
+    echo "                                  Illumina, 1 for Nanopore."
     echo ""
-    echo "  --freyja_minq VALUE             Minimum mapping quality of a read to a reference genome for coinfection analysis with freyja"
+    echo "  --freyja_minq VALUE             Minimum mapping quality of a read to a reference genome for coinfection analysis with Freyja. Defaults: 20 for Illumina, 2 for Nanopore."
     echo ""
-    echo "  --bed_offset VALUE              Number of bases by which a read can exceed the primer boundary (Nanopore-specific)"
+    echo "  --bed_offset VALUE              Number of bases by which a read can exceed the primer boundary. Nanopore-specific; default: 10."
     echo ""
-    echo "  --extra_bed_offset VALUE        Number of bases by which a poor quality read can exceed the primer boundary (Nanopore-specific)"
+    echo "  --extra_bed_offset VALUE        Number of bases by which a poor quality read can additionally exceed the primer boundary. Nanopore-specific; default: 10."
     echo ""
-    echo "  --medaka_model VALUE            Medaka model (Nanopore-specific)"
+    echo "  --medaka_model VALUE            Medaka model. Nanopore-specific parameter. Default: 941_min_sup_variant_g507"
     echo ""
-    echo "  --medaka_chunk_len VALUE        Medaka chunk length (Nanopore-specific)"
+    echo "  --medaka_chunk_len VALUE        Medaka chunk length. Nanopore specific parameter. Default: 5_000 (for SARS-CoV_2 and RSV), 1_000 (for Influenza)"
     echo ""
-    echo "  --medaka_chunk_overlap VALUE    Medaka chunk overlap (Nanopore-specific)"
+    echo "  --medaka_chunk_overlap VALUE    Medaka chunk overlap. Nanopore specific parameter. Default: 4_000 (for SARS-CoV_2 and RSV), 500 (for Influenza)"
     echo ""
-    echo "  --first_round_pval VALUE        p-value to determine if a variant is significant during rough genome prediction (Nanopore-specific)"
+    echo "  --first_round_pval VALUE        p-value to determine if a variant is significant during initial genome prediction. Nanopore-specific parameter. Default: 0.05"
     echo ""
-    echo "  --second_round_pval VALUE       p-value to determine if a variant is significant during genome fine tuning (Nanopore-specific)"
+    echo "  --second_round_pval VALUE       p-value to determine if a variant is significant during genome fine-tuning. Nanopore-specific parameter. Default: 0.05"
     echo ""
-    echo "  --results_dir PATH              Directory to store results"
+    echo "  --results_dir PATH              Directory to store results. Default ./results"
     echo ""
     echo "  --no-alphafold                  Skip calculations of 3D model with alphafold"
     echo ""
@@ -283,10 +284,10 @@ while true; do
             max_number_for_SV="$2"
             shift 2
             ;;
-	      --min_median_for_SV)
-	         min_median_for_SV="$2"
-	         shift 2
-	         ;;
+	--min_median_for_SV)
+	    min_median_for_SV="$2"
+	    shift 2
+	    ;;
         --variant)
             variant="$2"
             shift 2
@@ -484,15 +485,15 @@ elif [[ "$machine" == "Nanopore" ]]; then
 	[[ -z "${min_median_quality}" ]] && min_median_quality=0
 	[[ -z "${quality_initial}" ]] && quality_initial=2
 	[[ -z "${max_depth}" ]] && max_depth=600
-        [[ -z "${min_cov}" ]] && min_cov=50
-        [[ -z "${mask}" ]] && mask=50
-        [[ -z "${quality_snp}" ]] && quality_snp=5
-        [[ -z "${pval}" ]] && pval=0.05
+  	[[ -z "${min_cov}" ]] && min_cov=50
+  	[[ -z "${mask}" ]] && mask=50
+  	[[ -z "${quality_snp}" ]] && quality_snp=5
+  	[[ -z "${pval}" ]] && pval=0.05
 	[[ -z "${first_round_pval}" ]] && first_round_pval=0.05
 	[[ -z "${second_round_pval}" ]] && second_round_pval=0.05
-        [[ -z "${lower_ambig}" ]] && lower_ambig=0.45
-        [[ -z "${upper_ambig}" ]] && upper_ambig=0.55
-        [[ -z "${window_size}" ]] && window_size=50
+  	[[ -z "${lower_ambig}" ]] && lower_ambig=0.45
+  	[[ -z "${upper_ambig}" ]] && upper_ambig=0.55
+  	[[ -z "${window_size}" ]] && window_size=50
 	[[ -z "${quality_for_coverage}" ]] && quality_for_coverage=1
 
 else

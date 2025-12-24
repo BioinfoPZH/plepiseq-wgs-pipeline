@@ -1,6 +1,16 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.4.1] - 2025-12-23
+### Changes
+- restored first_round_pval default value to 0.05. 
+
+## [1.4.0] - 2025-12-16
+### Changed
+- Removed default values from Nextflow files; the shell wrapper is now the main gateway to execute the pipeline.
+- Updated documentation files to reflect changes introduced up to this version.
+- Removed redundant Writerside documentation sources (auxiliary doc project files); kept `dokumentacja.docx` and `dokumentacja.pdf` as the main documentation.
+
 ## [1.3.1] - 2025-12-09
 ### Fixed
 - Use the correct `uniref50` directory in the AlphaFold UniRef database update function.
