@@ -21,12 +21,12 @@ This project is part of [PleEpiSeq](https://www.pzh.gov.pl/projekty-i-programy/p
 7. [Results & output structure](#results--output-structure)
 8. [Updating external databases](#updating-external-databases)
 9. [Hardware guidelines](#hardware-guidelines)
-10. [Contributing](#contributing) • [Citing](#citing) • [License](#license)
+10. [Contributing](#contributing) • [License](#license)
 
 ---
 
 ## Features
-* **End‑to‑end automation** – QC → trimming → mapping → variant calling → genome assembly → lineage/clade assignment (Nextclade / Pangolin / Freyja) → (optional) 3‑D modelling of key proteins via AlphaFold2
+* **End‑to‑end automation** – QC → trimming → mapping → variant calling → genome assembly → lineage/clade assignment (Nextclade / Pangolin / Freyja) → (optional) 3‑D modeling of key proteins via AlphaFold2
 * **Both viral & bacterial workflows** with identical CLI style
 * **Docker‑based reproducibility** – one `docker build…` per image and you’re done
 * **Modular Nextflow design** – each logical step is its own module (43 modules total)
@@ -35,18 +35,18 @@ This project is part of [PleEpiSeq](https://www.pzh.gov.pl/projekty-i-programy/p
 
 ---
 
-## Quick start
+## Quick start
 
 ```bash
 # 1. clone the main repository
 git clone --depth 1 https://github.com/mkadlof/pzh_pipeline_viral
 cd pzh_pipeline_viral
 
-# 2. build four core docker images
-docker build --target main    -f docker/Dockerfile-main   -t pzh_pipeline_viral_main:latest .
-docker build --target manta   -f docker/Dockerfile-manta  -t pzh_pipeline_viral_manta:latest .
-docker build --target updater -f docker/Dockerfile-main   -t pzh_pipeline_viral_updater:latest .
-docker build -f docker/Dockerfile-bacteria -t pzh_pipeline_bacterial_main:latest .
+# 2. build four all docker images
+docker build --target main    -f docker/Dockerfile-viral     -t plepiseq-wgs-pipeline-viral:$(cat VERSION) .
+docker build --target manta   -f docker/Dockerfile-manta     -t plepiseq-wgs-pipeline-manta:$(cat VERSION) .
+docker build --target updater -f docker/Dockerfile-main      -t plepiseq-wgs-pipeline-updater:$(cat VERSION) .
+docker build                  -f docker/Dockerfile-bacteria  -t plepiseq-wgs-pipeline-bacteria:$(cat VERSION) .
 
 # 3. download external reference databases (≈230 GB)
 ./update_external_databases.sh --database all --output /mnt/raid/external_databases
@@ -56,14 +56,14 @@ docker build -f docker/Dockerfile-bacteria -t pzh_pipeline_bacterial_main:latest
 
 ## Requirements
 
-| Category | Minimum | Recommended |
-|----------|---------|-------------|
-| **OS** | modern x86‑64 GNU/Linux | Ubuntu 20/22 LTS or Debian 12 |
-| **Container runtime** | Docker ≥ 24.0 | Docker 27.x |
-| **Workflow engine** | Nextflow ≥ 24.04 | Nextflow 24.10 (binary in `$PATH`) |
-| **GPU** (optional) | 1× CUDA‑capable card | 1–8× NVIDIA A100 80 GB for AlphaFold2 |
-| **RAM** | 96 GB (Kraken2 std.) | ≥ 128 GB per running sample |
-| **Disk** | 300 GB (images + DB) | 1 TB NVMe SSD for temp/work |
+| Category              | Minimum                 | Recommended                           |
+|-----------------------|-------------------------|---------------------------------------|
+| **OS**                | modern x86‑64 GNU/Linux | Ubuntu 20/22 LTS or Debian 12         |
+| **Container runtime** | Docker ≥ 24.0           | Docker 27.x                           |
+| **Workflow engine**   | Nextflow ≥ 24.04        | Nextflow 24.10 (binary in `$PATH`)    |
+| **GPU** (optional)    | 1× CUDA‑capable card    | 1–8× NVIDIA A100 80 GB for AlphaFold2 |
+| **RAM**               | 96 GB (Kraken2 std.)    | ≥ 128 GB per running sample           |
+| **Disk**              | 300 GB (images + DB)    | 1 TB NVMe SSD for temp/work           |
 
 ---
 
@@ -75,9 +75,9 @@ docker build -f docker/Dockerfile-bacteria -t pzh_pipeline_bacterial_main:latest
    ```bash
    git clone https://github.com/google-deepmind/alphafold.git
    cd alphafold && git checkout 6350ddd63b3e3f993c7f23b5ce89eb4726fa49e8
-   docker build -f docker/Dockerfile -t alphafold2:latest .
+   docker build -f docker/Dockerfile -t plepiseq-wgs-pipeline-alphafold:$(cat VERSION) .
    ```
-4. **Medaka & Prokka** – pull public images (exact tags are pinned):
+4. **Medaka & Prokka** – pull public images (exact tags are pinned):
    ```bash
    docker pull ontresearch/medaka:sha447c70a639b8bcf17dc49b51e74dfcde6474837b-amd64
    docker pull staphb/prokka:latest
@@ -109,28 +109,28 @@ If you renamed the default images, add `--main_image …`, `--prokka_image …`,
 
 ## Key parameters
 
-| Flag | Purpose | Typical value / default |
-|------|---------|-------------------------|
-| `--reads` | Glob pattern to FASTQ files | `*_R{1,2}.fastq.gz` (Illumina) |
-| `--machine` | Sequencer platform | `Illumina` or `Nanopore` |
-| `--species` | Target organism | `SARS-CoV-2`, `Influenza`, `RSV` |
-| `--primers_id` | Amplicon scheme (viral) | see table below |
-| `--external_databases_path` | Path to DBs | `/mnt/raid/external_databases` |
-| `--threads` | Max CPUs per process | defaults to all available |
+| Flag                        | Purpose                     | Typical value / default          |
+|-----------------------------|-----------------------------|----------------------------------|
+| `--reads`                   | Glob pattern to FASTQ files | `*_R{1,2}.fastq.gz` (Illumina)   |
+| `--machine`                 | Sequencer platform          | `Illumina` or `Nanopore`         |
+| `--species`                 | Target organism             | `SARS-CoV-2`, `Influenza`, `RSV` |
+| `--primers_id`              | Amplicon scheme (viral)     | see table below                  |
+| `--external_databases_path` | Path to DBs                 | `/mnt/raid/external_databases`   |
+| `--threads`                 | Max CPUs per process        | defaults to all available        |
 
 Supported primer sets:
 
-| Virus | Scheme(s) |
-|-------|-----------|
+| Virus          | Scheme(s)                                                                         |
+|----------------|-----------------------------------------------------------------------------------|
 | **SARS‑CoV‑2** | `V1`, `V3`, `V4`, `V4.1`, `V5.3.2`, `V1200`, `VarSkip2`, `EQA2023.*`, `EQA2024.*` |
-| **RSV** | `V0`, `V1` |
-| **Influenza** | *primers_id unused (segment specific)* |
+| **RSV**        | `V0`, `V1`                                                                        |
+| **Influenza**  | *primers_id unused (segment specific)*                                            |
 
 For a full list of explicit & implicit options, see §6 of the documentation.
 
 ---
 
-## Results & output structure
+## Results & output structure
 
 ```
 results/
@@ -155,7 +155,7 @@ Run weekly (cron/SLURM job example is shown in §5.2 of the docs):
 ./update_external_databases.sh --database all --output /mnt/raid/external_databases
 ```
 
-Individual DBs can be refreshed with `--database pangolin`, `--database kraken2`, etc. .
+Individual DBs can be refreshed with `--database pangolin`, `--database kraken2`, etc.
 
 ---
 
@@ -174,7 +174,7 @@ Pull requests and issue reports are welcome. Please open an issue first if you p
 
 ## Documentation (English)
 
-Documentation is available in the [`doc/`](doc/) directory:
+Documentation is available in the [doc](doc/) directory:
 
 ```
 doc/dokumentacja.docx
@@ -193,6 +193,6 @@ The current version of this pipeline is stored in the `VERSION` file at the root
 
 ## Skipping AlphaFold (no GPU mode)
 
-Both the bacterial and viral pipelines include an AlphaFold2-based protein structure prediction step. By default this step runs and requires a GPU and the docker image with AlphaFold2 program.
+Both the bacterial and viral pipelines include an AlphaFold2-based protein structure prediction step. By default, this step runs and requires a GPU and the docker image with AlphaFold2 program.
 
 You can disable this step by running the wrapper scripts with the `--no-alphafold` flag.
