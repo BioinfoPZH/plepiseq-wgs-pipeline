@@ -47,7 +47,6 @@ docker build --target main    -f docker/Dockerfile-viral     -t plepiseq-wgs-pip
 docker build --target manta   -f docker/Dockerfile-manta     -t plepiseq-wgs-pipeline-manta:$(cat VERSION) .
 docker build --target updater -f docker/Dockerfile-main      -t plepiseq-wgs-pipeline-updater:$(cat VERSION) .
 docker build                  -f docker/Dockerfile-bacteria  -t plepiseq-wgs-pipeline-bacteria:$(cat VERSION) .
-docker build                  -f docker/Dockerfile-alphafold -t plepiseq-wgs-pipeline-alphafold:$(cat VERSION) .
 
 # 3. download external reference databases (≈230 GB)
 ./update_external_databases.sh --database all --output /mnt/raid/external_databases
@@ -72,13 +71,19 @@ docker build                  -f docker/Dockerfile-alphafold -t plepiseq-wgs-pip
 
 1. **Clone** this repo (see *Quick start*).
 2. **Build Docker images** as shown above.
-3. **Medaka & Prokka** – pull public images (exact tags are pinned):
+3. **AlphaFold2** – clone DeepMind repo and build image once:
+   ```bash
+   git clone https://github.com/google-deepmind/alphafold.git
+   cd alphafold && git checkout 6350ddd63b3e3f993c7f23b5ce89eb4726fa49e8
+   docker build -f docker/Dockerfile -t plepiseq-wgs-pipeline-alphafold:$(cat VERSION) .
+   ```
+4. **Medaka & Prokka** – pull public images (exact tags are pinned):
    ```bash
    docker pull ontresearch/medaka:sha447c70a639b8bcf17dc49b51e74dfcde6474837b-amd64
    docker pull staphb/prokka:latest
    ```
-4. **External DBs** – already downloaded in *Quick start*; update regularly (see below).
-5. Create nextflow config (consult documentation §2.1.6)
+5. **External DBs** – already downloaded in *Quick start*; update regularly (see below).
+6. Create nextflow config (consult documentation §2.1.6)
 ---
 
 ## Running the pipelines
