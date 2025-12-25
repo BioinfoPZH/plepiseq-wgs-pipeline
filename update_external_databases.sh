@@ -65,31 +65,31 @@ while true; do
             output="$2"
             shift 2
             ;;
-	--image_name)
-	    image_name="$2"
+	  --image_name)
+	          image_name="$2"
             shift 2
             ;;
-	--kraken_type)
+	  --kraken_type)
             kraken_type="$2"
             shift 2
             ;;
-        --cpus)
+    --cpus)
             cpus="$2"
             shift 2
             ;;
-        --genus)
+    --genus)
             genus="$2"
             shift 2
             ;;
-        -h|--help)
+    -h|--help)
             show_help
             exit 0
             ;;
-        --)
+    --)
             shift
             break
             ;;
-        *)
+    *)
             echo "Unknown option: $1"
             show_help
             exit 1
@@ -102,9 +102,9 @@ done
 CORRECT_DB=0
 ALL_DB=(amrfinder_plus mlst cgmlst cgmlstfinder disinfinder resfinder vfdb enterobase kmerfinder metaphlan phiercc pubmlst pointfinder plasmidfinder virulencefinder spifinder mlstfinder pangolin nextclade kraken2 freyja alphafold all)
 for var in "${ALL_DB[@]}"; do
-    if [ "${database}" == "${var}" ];then
-           CORRECT_DB=1
-           break
+    if [ "${database}" == "${var}" ]; then
+        CORRECT_DB=1
+        break
    fi
 done
 
@@ -194,8 +194,8 @@ fi
 
 ## Check if user did provide between 0 to nproc of cpus
 if [[ "$cpus" -le 0 || "$cpus" -gt "$(nproc)" ]]; then
-       echo "Number of cpus cannot be lower than 1 and cannot exceed $(nproc)"
-       exit 1
+    echo "Number of cpus cannot be lower than 1 and cannot exceed $(nproc)"
+    exit 1
 fi
 
 # Output the parsed arguments
