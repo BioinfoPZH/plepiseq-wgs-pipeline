@@ -42,10 +42,10 @@ This project is part of [PleEpiSeq](https://www.pzh.gov.pl/projekty-i-programy/p
 git clone --depth 1 https://github.com/mkadlof/pzh_pipeline_viral
 cd pzh_pipeline_viral
 
-# 2. build four all docker images
+# 2. build all four docker images
 docker build --target main    -f docker/Dockerfile-viral     -t plepiseq-wgs-pipeline-viral:$(cat VERSION) .
 docker build --target manta   -f docker/Dockerfile-manta     -t plepiseq-wgs-pipeline-manta:$(cat VERSION) .
-docker build --target updater -f docker/Dockerfile-main      -t plepiseq-wgs-pipeline-updater:$(cat VERSION) .
+docker build --target updater -f docker/Dockerfile-updater      -t plepiseq-wgs-pipeline-updater:$(cat VERSION) .
 docker build                  -f docker/Dockerfile-bacteria  -t plepiseq-wgs-pipeline-bacteria:$(cat VERSION) .
 
 # 3. download external reference databases (≈230 GB)
@@ -75,7 +75,7 @@ docker build                  -f docker/Dockerfile-bacteria  -t plepiseq-wgs-pip
    ```bash
    git clone https://github.com/google-deepmind/alphafold.git
    cd alphafold && git checkout 6350ddd63b3e3f993c7f23b5ce89eb4726fa49e8
-   docker build -f docker/Dockerfile -t plepiseq-wgs-pipeline-alphafold:$(cat VERSION) .
+   docker build -f docker/Dockerfile -t plepiseq-wgs-pipeline-alphafold:$(cat ../VERSION) .
    ```
 4. **Medaka & Prokka** – pull public images (exact tags are pinned):
    ```bash

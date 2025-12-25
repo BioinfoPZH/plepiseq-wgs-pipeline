@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 - Updated the default name of the containers.
 
+## [1.4.1] - 2025-12-23
 ### Changes
 - restored first_round_pval default value to 0.05. 
 
