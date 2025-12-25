@@ -36,7 +36,7 @@ ExecutionDir = new File('.').absolutePath
 params.machine = '' // Can be set to either 'Illumina' or 'Nanopore'. Required
 params.reads = "" // Must be provided by user
 params.primers_id = "" // Organism specific, e.g V0 or V1 for RSV
-params.adapters_id="TruSeq3-PE-2" // Can be user-provided, there is a default
+params.adapters_id="" // Can be user-provided, there is a default
 params.species = "" // Required, name of a species expected to be analyzed with this pipeline can be either "SARS-CoV-2", "RSV" or "Influenza" 
 
 // // Output Directory
@@ -44,79 +44,42 @@ params.results_dir = ""
 
 // // All species-relevant variables, for now only expected genus for kraken2. Furthermore if a user provides a wrong species the pipeline will not execute
 
-if ( params.species  == 'SARS-CoV-2' ) {
-params.max_number_for_SV = ""
-params.min_median_for_SV = "" 
-} else if (params.species  == 'Influenza') {
-params.variant = "UNK"
-params.max_number_for_SV = ""
-params.min_median_for_SV = "" // for Influenza this parameter is redundant
-// Betainfluenzavirus for B/ kraken2 for now only undestands one genus
-} else if (params.species  == 'RSV') {
-params.max_number_for_SV = ""
-params.min_median_for_SV = ""
+if ( params.species  == 'SARS-CoV-2' || params.species  == 'Influenza' || params.species  == 'RSV' ) {
+  params.max_number_for_SV = ""
+  params.min_median_for_SV = ""
 } else {
   println("Incorrect species, avalable options are : SARS-CoV-2, RSV or Influenza")
   System.exit(0)
 }
 
-// // High-level parameters 
-// params.memory = 4048
-params.threads = 1
+// // High-level parameters
+params.threads = ""
 
 // // All sequencing platform-specific parameters
-if ( params.machine  == 'Illumina' ) {
-params.min_number_of_reads = 1
-params.expected_genus_value = 5
-params.min_median_quality = 0
-params.quality_initial = 5
-params.length = 90
-params.max_depth = 600
-params.min_cov = 20
-params.mask = 20
-params.quality_snp = 15
-params.pval = 0.05
-params.lower_ambig = 0.45
-params.upper_ambig = 0.55
-params.window_size = 50 // Window size in which we equalize the coverage
-params.min_mapq = 30
-params.quality_for_coverage = 10 // Parametr uzywany w modul lowCov
-params.freyja_minq = 20
-} else if (params.machine  == 'Nanopore') {
-params.freyja_minq = 2
-params.bed_offset=10 // for filtering
-params.extra_bed_offset=10 // for filtering
-params.min_mapq = 30 // for filtering
-params.window_size = 50 // for filtering window size in which we equalize the coverage 
-params.length = 0.49 // for filtering, nanopore min length is relative to the expected segment/amplikon length
-params.medaka_model = "r941_min_sup_variant_g507" // Flow cell v9.4.1, for first round of medaka for the second round we use r941_min_sup_g507
-
-if ( params.species  == 'SARS-CoV-2' ) {
-  params.medaka_chunk_len =  5000  // Flow cell v9.4.1
-  params.medaka_chunk_overlap = 4000 // Flow cell v9.4.1
-} else if (params.species  == 'Influenza') {
-  params.medaka_chunk_len = 1000  // Flow cell v9.4.1
-  params.medaka_chunk_overlap = 500 // Flow cell v9.4.1
-} else if (params.species  == 'RSV') {
-  params.medaka_chunk_len = 5000  // Flow cell v9.4.1
-  params.medaka_chunk_overlap = 4000 // Flow cell v9.4.1
-}
-
-params.min_number_of_reads = 1 // Stop the analysis if after mapping step bam has less than that number of reads
-params.expected_genus_value = 5
-params.min_median_quality = 0
-params.quality_initial = 2 // We are extreamly lenient for nanopore 
-params.max_depth = 600
-params.min_cov = 50
-params.mask = 50
-params.quality_snp = 5 // We are extreamly lenient for nanopore
-params.first_round_pval = 0.25 
-params.second_round_pval = 0.05
-params.pval = 0.05 // For varscan
-params.lower_ambig = 0.45
-params.upper_ambig = 0.55
-params.quality_for_coverage = 1 // Parametr uzywany w modul lowCov, again we are extreamly lenient 
-
+if ( params.machine  == 'Illumina' || params.machine  == 'Nanopore') {
+  params.min_number_of_reads = ""
+  params.expected_genus_value = ""
+  params.min_median_quality = ""
+  params.quality_initial = ""
+  params.length = ""
+  params.max_depth = ""
+  params.min_cov = ""
+  params.mask = ""
+  params.quality_snp = ""
+  params.pval = ""
+  params.lower_ambig = ""
+  params.upper_ambig = ""
+  params.window_size = ""
+  params.min_mapq = ""
+  params.quality_for_coverage = ""
+  params.freyja_minq = ""
+  params.bed_offset = ""
+  params.extra_bed_offset = ""
+  params.medaka_model = ""
+  params.medaka_chunk_len = ""
+  params.medaka_chunk_overlap = ""
+  params.first_round_pval = ""
+  params.second_round_pval = ""
 } else {
   println("Incorrect sequnecing platform, avalable options are : Illumina and Nanopore")
   System.exit(0)
