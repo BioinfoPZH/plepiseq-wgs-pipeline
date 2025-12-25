@@ -14,8 +14,8 @@
 # 15 3 1 */3 * cd /path/to/sars-illumina && bin/update_external_databases.sh kraken
 
 database="all" #  name of the database to update, alternatively "all" can can be used 
-kraken_type="standard" #  name of the kraken2 subdatabase, only valid if performning "kraken2" update
-genus="all" #  name of the genus for which database is updated, only valid if mlsr or cgmlst databases are updated
+kraken_type="standard" #  name of the kraken2 subdatabase, only valid if performing "kraken2" update
+genus="all" #  name of the genus for which database is updated, only valid if mlst or cgmlst databases are updated
 output=""  #  top-level directory with databases, each database will be a subdirectory of it, hierarchy of databases in that directory is PREDEFINED
 image_name="pzh_pipeline_viral_updater:latest" #  name of the image within which all updates are performed
 cpus=1
@@ -26,21 +26,21 @@ function show_help() {
     echo
     echo "Options:"
     echo "  --database      Name of the database to download or update"
-    echo "                  Nazwa bazy do pobrania/aktualizacji. Mozliwe opcje to:"
+    echo "                  Nazwa bazy do pobrania/aktualizacji. Możliwe opcje to:"
     echo "                  amrfinder_plus mlst cgmlst disinfinder resfinder vfdb enterobase"
     echo "                  kmerfinder metaphlan phiercc pubmlst pointfinder plasmidfinder virulencefinder"
     echo "                  spifinder mlstfinder pangolin nextclade kraken2 freyja alphafold all"
-    echo "  --output        Path to save the downloaded database. Each database is placed in a separete subdirectory"
-    echo "                  Sciezka do katalogu z bazami, dla kazdej bazy zostanie stworzony wlasny podkatalog "
+    echo "  --output        Path to save the downloaded database. Each database is placed in a separate subdirectory"
+    echo "                  Ścieżka do katalogu z bazami, dla każdej bazy zostanie stworzony własny podkatalog "
     echo "  --image_name    Full name of the docker image (with tag) used for updates"
-    echo "                  Nazwa obrazu docker uzywanego przez program do pobierania/aktualizacji baz"
+    echo "                  Nazwa obrazu docker używanego przez program do pobierania/aktualizacji baz"
     echo "Optional arguments:"
     echo "  --cpus          Number of threads"
-    echo "                  Liczba procesorow (domyslna wartosc: 1)"
+    echo "                  Liczba procesorów (domyslna wartosc: 1)"
     echo "  --kraken_type   Type of Kraken database (valid if database is set to kraken2). See pipelines documentations section 5.4.3) If not provided 'standard' database is downloaded"
-    echo "                  Nazwa predefiniowanej bazy wykorzystywanej przez program kraken. W przypadku gdy nie podano tego argumentu pobierana jest baza 'standard' "
-    echo "  --genus         Name of a genus (valid only for mlst, cgmlst, and enterobase databases). If not provided database is downloaded for all three genuses"
-    echo "                  Nazwa rodzaju bakterii dla ktorego pobierana jest baza (tylko w przypadku baz mlst, cgmls oraz enterobase). Mozliwe wartosci to:"
+    echo "                  Nazwa predefiniowanej bazy wykorzystywanej przez program kraken. W przypadku, gdy nie podano tego argumentu pobierana jest baza 'standard' "
+    echo "  --genus         Name of a genus (valid only for mlst, cgmlst, and enterobase databases). If not provided database is downloaded for all three genera"
+    echo "                  Nazwa rodzaju bakterii, dla którego pobierana jest baza (tylko w przypadku baz mlst, cgmlst oraz enterobase). Mozliwe wartosci to:"
     echo "                  Salmonella Escherichia Campylobacter all"
 }
 
@@ -169,7 +169,7 @@ if [[ "$database" == "mlst"  ||  "$database" == "cgmlst" || "$database" == "ente
        fi
 fi
 
-## Check if user did provide betwee 0 to nproc of cpus
+## Check if user did provide between 0 to nproc of cpus
 if [[ "$cpus" -le 0 || "$cpus" -gt "$(nproc)" ]]; then
        echo "Number of cpus cannot be lower than 1 and cannot exceed $(nproc)"
        exit 1
