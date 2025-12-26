@@ -39,13 +39,13 @@ This project is part of [PleEpiSeq](https://www.pzh.gov.pl/projekty-i-programy/p
 
 ```bash
 # 1. clone the main repository
-git clone --depth 1 https://github.com/mkadlof/pzh_pipeline_viral
-cd pzh_pipeline_viral
+git clone --depth 1 https://github.com/mkadlof/plepiseq-wgs-pipeline
+cd plepiseq-wgs-pipeline
 
 # 2. build all four docker images
 docker build --target main    -f docker/Dockerfile-viral     -t plepiseq-wgs-pipeline-viral:$(cat VERSION) .
 docker build --target manta   -f docker/Dockerfile-manta     -t plepiseq-wgs-pipeline-manta:$(cat VERSION) .
-docker build --target updater -f docker/Dockerfile-updater      -t plepiseq-wgs-pipeline-updater:$(cat VERSION) .
+docker build --target updater -f docker/Dockerfile-viral     -t plepiseq-wgs-pipeline-updater:$(cat VERSION) .
 docker build                  -f docker/Dockerfile-bacteria  -t plepiseq-wgs-pipeline-bacteria:$(cat VERSION) .
 
 # 3. download external reference databases (≈230 GB)
