@@ -43,14 +43,14 @@ species="" # Only SARS-CoV-2, Influenza or RSV
 # Parameteres V-VIII
 ## localization of the file with and databases required to execute this pipeline
 ## Existing directories, for testing purpose can be change. but for production invariable
-projectDir="/home/michall/git/pzh_pipeline_viral/"
+projectDir=""
 external_databases_path="/mnt/raid/external_databases"
 results_dir="./results"
 
 ## docker images required to execute this pipeline
 ## Existing images, for testing purpose can be change, but for production invariable
-main_image="pzh_pipeline_viral_main:latest"
-manta_image="pzh_pipeline_viral_manta:latest"
+main_image="plepiseq-wgs-pipeline-viral:$(cat VERSION)"
+manta_image="plepiseq-wgs-pipeline-manta:$(cat VERSION)"
 medaka_image="ontresearch/medaka:sha447c70a639b8bcf17dc49b51e74dfcde6474837b-amd64"
 alphafold_image="alphafold2:latest"
 
@@ -572,4 +572,4 @@ nextflow run ${projectDir}/nf_pipeline_viral.nf \
     -with-trace
 
 # Example call for SARS-CoV-2 Illumina data on A100
-# ./run_nf_pipeline.sh --reads "/mnt/md0/michall/EQA2024_SARS/fastq/*_{1,2}.fastq.gz"  --machine="Illumina" --species="SARS-CoV-2" --projectDir="/home/michall/git/pzh_pipeline_viral/" --threads 40 --primers_id="EQA2023.SARS2"
+# ./run_nf_pipeline.sh --reads "/mnt/md0/michall/EQA2024_SARS/fastq/*_{1,2}.fastq.gz"  --machine="Illumina" --species="SARS-CoV-2" --projectDir="/home/michall/git/plepiseq-wgs-pipeline/" --threads 40 --primers_id="EQA2023.SARS2"
