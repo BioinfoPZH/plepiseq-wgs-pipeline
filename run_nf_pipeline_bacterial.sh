@@ -16,7 +16,7 @@ results_dir="./results"
 
 # docker images required to execute this pipeline
 ## Existing images, for testing purpose can be change, but for production invariable
-main_image="plepiseq-wgs-pipeline-bacteria:$(cat VERSION)"
+main_image="plepiseq-wgs-pipeline-bacteria:$(cat ${projectDir}/VERSION)"
 prokka_image="staphb/prokka:latest"
 alphafold_image="alphafold2:latest"
 

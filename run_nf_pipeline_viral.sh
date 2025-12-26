@@ -49,8 +49,8 @@ results_dir="./results"
 
 ## docker images required to execute this pipeline
 ## Existing images, for testing purpose can be change, but for production invariable
-main_image="plepiseq-wgs-pipeline-viral:$(cat VERSION)"
-manta_image="plepiseq-wgs-pipeline-manta:$(cat VERSION)"
+main_image="plepiseq-wgs-pipeline-viral:$(cat ${projectDir}/VERSION)"
+manta_image="plepiseq-wgs-pipeline-manta:$(cat ${projectDir}/VERSION)"
 medaka_image="ontresearch/medaka:sha447c70a639b8bcf17dc49b51e74dfcde6474837b-amd64"
 alphafold_image="alphafold2:latest"
 
