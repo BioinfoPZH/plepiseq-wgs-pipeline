@@ -31,7 +31,7 @@ while [[ $# -gt 0 ]]; do
             # Pass through all other arguments unchanged
             UNIFIED_ARGS+=("$1")
             if [[ "$1" != "--no-alphafold" && "$1" != "--all" && "$1" != "-h" && "$1" != "--help" && "$1" != "--" ]]; then
-                if [[ $# -gt 1 && "$2" != "--"* ]]; then
+                if [[ $# -gt 1 && "$2" != --* ]]; then
                     UNIFIED_ARGS+=("$2")
                     shift
                 fi

@@ -59,6 +59,7 @@ model_medaka=""
 # Docker images for viral pipeline
 viral_main_image="pzh_pipeline_viral_main:latest"
 viral_manta_image="pzh_pipeline_viral_manta:latest"
+# Note: medaka image uses specific SHA for reproducibility - update with caution
 viral_medaka_image="ontresearch/medaka:sha447c70a639b8bcf17dc49b51e74dfcde6474837b-amd64"
 
 # Single source of truth for all supported primer schemes
@@ -642,6 +643,14 @@ fi
 # ============================================================================
 # VALIDATE READS EXIST
 # ============================================================================
+
+# Check if reads matching the pattern exist
+# Note: This uses eval for brace expansion which is necessary for patterns like '*_R{1,2}.fastq.gz'
+# The reads variable comes from user input, so ensure it's properly quoted when passed to the script
+if [[ "${reads}" =~ [\;\&\|\`\$\(] ]]; then
+    echo "Error: Invalid characters in reads pattern. Only file glob patterns are allowed."
+    exit 1
+fi
 
 expanded_reads=$(eval ls ${reads} 2> /dev/null)
 
