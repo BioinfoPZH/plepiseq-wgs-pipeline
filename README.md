@@ -37,33 +37,42 @@ This project is part of [PleEpiSeq](https://www.pzh.gov.pl/projekty-i-programy/p
 
 ## Quick start
 
-```bash
-# 1. clone the main repository
+
+### 1. Clone the main repository
+```
 git clone --depth 1 https://github.com/mkadlof/plepiseq-wgs-pipeline
 cd plepiseq-wgs-pipeline
+```
+### 2. Build docker images used by the pipeline 
+```
+docker build --target main    -f docker/Dockerfile-viral     -t plepiseq-wgs-pipeline-viral:$(cat VERSION)       -t plepiseq-wgs-pipeline-viral:latest    .
+docker build --target manta   -f docker/Dockerfile-manta     -t plepiseq-wgs-pipeline-manta:$(cat VERSION)       -t plepiseq-wgs-pipeline-manta:latest    .
+docker build --target updater -f docker/Dockerfile-viral     -t plepiseq-wgs-pipeline-updater:$(cat VERSION)     -t plepiseq-wgs-pipeline-updater:latest  .
+docker build                  -f docker/Dockerfile-bacterial -t plepiseq-wgs-pipeline-bacterial:$(cat VERSION)  -t plepiseq-wgs-pipeline-bacterial:latest .
+```
 
-# 2. build all four docker images
-docker build --target main    -f docker/Dockerfile-viral     -t plepiseq-wgs-pipeline-viral:$(cat VERSION) .
-docker build --target manta   -f docker/Dockerfile-manta     -t plepiseq-wgs-pipeline-manta:$(cat VERSION) .
-docker build --target updater -f docker/Dockerfile-viral     -t plepiseq-wgs-pipeline-updater:$(cat VERSION) .
-docker build                  -f docker/Dockerfile-bacteria  -t plepiseq-wgs-pipeline-bacteria:$(cat VERSION) .
+Note: For each Dockerfile two images are created: one tagged `latest` and one tagged with the value from the `VERSION` file. Images tagged with `latest` are used as **defaults** in most helper scripts.
 
-# 3. download external reference databases (≈230 GB)
+
+### 3. download external reference databases (≈230 GB)
+```
 ./update_external_databases.sh --database all --output /mnt/raid/external_databases
 ```
+
+Note: Provide the script with an existing path 
 
 ---
 
 ## Requirements
 
-| Category              | Minimum                 | Recommended                           |
-|-----------------------|-------------------------|---------------------------------------|
-| **OS**                | modern x86‑64 GNU/Linux | Ubuntu 20/22 LTS or Debian 12         |
-| **Container runtime** | Docker ≥ 24.0           | Docker 27.x                           |
-| **Workflow engine**   | Nextflow ≥ 24.04        | Nextflow 24.10 (binary in `$PATH`)    |
-| **GPU** (optional)    | 1× CUDA‑capable card    | 1–8× NVIDIA A100 80 GB for AlphaFold2 |
-| **RAM**               | 96 GB (Kraken2 std.)    | ≥ 128 GB per running sample           |
-| **Disk**              | 300 GB (images + DB)    | 1 TB NVMe SSD for temp/work           |
+| Category              | Minimum                                 | Recommended                           |
+|-----------------------|-----------------------------------------|---------------------------------------|
+| **OS**                | modern x86‑64 GNU/Linux                 | Ubuntu 20/22 LTS or Debian 12         |
+| **Container runtime** | Docker ≥ 24.0                           | Docker 27.x                           |
+| **Workflow engine**   | Nextflow ≥ 24.04                        | Nextflow 24.10 (binary in `$PATH`)    |
+| **GPU** (optional)    | 1× CUDA‑capable card                    | 1–8× NVIDIA A100 80 GB for AlphaFold2 |
+| **RAM**               | 96 GB (Kraken2 std.)                    | ≥ 128 GB per running sample           |
+| **Disk**              | 4 TB (images + <br/>external databases) | 4 TB NVMe SSD                         |
 
 ---
 
@@ -71,12 +80,22 @@ docker build                  -f docker/Dockerfile-bacteria  -t plepiseq-wgs-pip
 
 1. **Clone** this repo (see *Quick start*).
 2. **Build Docker images** as shown above.
-3. **AlphaFold2** – clone DeepMind repo and build image once:
+3. **AlphaFold2** – clone DeepMind repo, copy **our** custom dockerfile from ```docker/Dockerfile``` 
+    to AlphaFold2 repository and build an image:
    ```bash
    git clone https://github.com/google-deepmind/alphafold.git
    cd alphafold && git checkout 6350ddd63b3e3f993c7f23b5ce89eb4726fa49e8
-   docker build -f docker/Dockerfile -t plepiseq-wgs-pipeline-alphafold:$(cat ../VERSION) .
    ```
+   copy updated Alphafold image from our repo to alphafold repo 
+   
+   ```
+   cp ${PATH_TO_PLEPISEQ_REPO}/docker/Dockerfile docker/Dockerfile
+   ```
+   build an image
+   ```
+   docker build -f docker/Dockerfile -t plepiseq-wgs-pipeline-alphafold:latest .
+   ```
+   
 4. **Medaka & Prokka** – pull public images (exact tags are pinned):
    ```bash
    docker pull ontresearch/medaka:sha447c70a639b8bcf17dc49b51e74dfcde6474837b-amd64

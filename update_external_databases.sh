@@ -17,7 +17,7 @@ database="all" #  name of the database to update, alternatively "all" can can be
 kraken_type="standard" #  name of the kraken2 subdatabase, only valid if performning "kraken2" update
 genus="all" #  name of the genus for which database is updated, only valid if mlsr or cgmlst databases are updated
 output=""  #  top-level directory with databases, each database will be a subdirectory of it, hierarchy of databases in that directory is PREDEFINED
-image_name="plepiseq-wgs-pipeline-updater:$(cat VERSION)" #  name of the image within which all updates are performed
+image_name="plepiseq-wgs-pipeline-updater:latest" #  name of the image within which all updates are performed
 cpus=1
 
 # Function to display help message
