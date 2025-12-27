@@ -1,7 +1,19 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
-## [1.4.2] - 2025-12-30
+
+## [1.4.3] - 2025-12-27
+### Changed
+- Enforced `plepiseq-wgs-pipeline` as the recommended prefix for Docker images created during pipeline installation.
+- Updated default image names in `run_nf_pipeline_bacterial.sh`, `run_nf_pipeline_viral.sh`, and `update_external_databases.sh`.
+- Updated `README.md` with the correct Docker image names, an improved AlphaFold2 installation section, and an updated requirements section.
+
+### Fixed
+- Restored the use of the `latest` tag for the most up-to-date version of each image in the shell wrappers.
+
+
+
+## [1.4.2] - 2025-12-26
 ### Changed
 - Updated the default name of the containers.
 
