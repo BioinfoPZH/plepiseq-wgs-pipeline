@@ -48,7 +48,7 @@ cd plepiseq-wgs-pipeline
 docker build --target main    -f docker/Dockerfile-viral     -t plepiseq-wgs-pipeline-viral:$(cat VERSION)       -t plepiseq-wgs-pipeline-viral:latest    .
 docker build --target manta   -f docker/Dockerfile-manta     -t plepiseq-wgs-pipeline-manta:$(cat VERSION)       -t plepiseq-wgs-pipeline-manta:latest    .
 docker build --target updater -f docker/Dockerfile-viral     -t plepiseq-wgs-pipeline-updater:$(cat VERSION)     -t plepiseq-wgs-pipeline-updater:latest  .
-docker build                  -f docker/Dockerfile-bacterial -t plepiseq-wgs-pipeline-bacterial:$(cat VERSION)  -t plepiseq-wgs-pipeline-bacterial:latest .
+docker build                  -f docker/Dockerfile-bacterial -t plepiseq-wgs-pipeline-bacterial:$(cat VERSION)   -t plepiseq-wgs-pipeline-bacterial:latest .
 ```
 
 Note: For each Dockerfile two images are created: one tagged `latest` and one tagged with the value from the `VERSION` file. Images tagged with `latest` are used as **defaults** in most helper scripts.
