@@ -194,7 +194,7 @@ RUN cd /opt/docker ;\
 ## AMRFIDER
 RUN git clone https://github.com/ncbi/amr.git ;\
     cd /opt/docker/amr ;\
-    git reset --hard 25a3690 ;\
+    git reset --hard 81f509d ;\
     git checkout stxtype ;\
     git submodule update --init ;\
     make; make install ;\
