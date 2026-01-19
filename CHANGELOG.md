@@ -1,6 +1,11 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.4.4] - 2026-01-19
+
+### Fixed
+- Update AMRfinder from version 4.0 to 4.2.5. Version 4.2.5 requires database version at least 2025-12-03.1
+
 
 ## [1.4.3] - 2025-12-27
 ### Changed
