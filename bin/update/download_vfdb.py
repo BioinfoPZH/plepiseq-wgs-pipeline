@@ -1,93 +1,62 @@
+from utils.net import check_url_available, StatusType
+from utils.download_helpers import _download_file_with_retry
+from utils.report import ReportBuilder, ALL_STEPS, SCHEMA_VERSION
+from utils.run_id import generate_run_id
+from utils.updates_helpers import file_md5sum
+from utils.setup_logging import _setup_logging
+from utils.generic_helpers import _dir_removal, _execute_command
+from utils.validation import verify_expected_files
+
+import getpass
+import socket
 import os
-import sys
-import re
-import time
 import json
-import glob
-import shutil
-import hashlib
-import logging
-import subprocess
-from datetime import datetime
-from multiprocessing import Pool
 from pathlib import Path
-import click
-import requests
+from datetime import datetime, timezone
 from Bio import SeqIO
+import re
+from multiprocessing.dummy import Pool as ThreadPool
+from functools import partial
+
+import glob
+import logging
+from  typing import List, Dict, Optional, Any, Tuple
+
+### Database specific section ###
+#################################
+# Determines urls, expected files (downloaded, processed), updating mechanism etc.
+# This is static and database-specific.
+################################
 
 
-VFDB_BASE_URL = "https://www.mgc.ac.cn/VFs/Down" # url to Download (yes it is 'Down')
-VFDB_HOME="https://www.mgc.ac.cn/VFs/main.htm"
-FILES = ["VFDB_setB_nt.fas.gz", "VFs.xls.gz"] # relevant files from vfdb
+DATABASE = {"name": "vfdb", "category": "Virulence factors database"}
+SOURCE = {
+    "source_type": "https",
+    "reference": "https://www.mgc.ac.cn/VFs/Down",
+    "expected_raw_files": ["VFDB_setB_nt.fas.gz", "VFs.xls.gz"],
+    "expected_processed_files": ["Salmonella/VFC0001/VF0102/fimA.fa",
+                                 "Salmonella/VFC0001/VF0102/fimA.fa.ndb",
+                                 "Salmonella/VFC0001/VF0970/siiE.fa",
+                                 "Salmonella/VFC0001/VF0970/siiE.fa.not",
+                                 "Salmonella/VFC0325/VF0396/mig-5.fa",
+                                 "Salmonella/VFC0325/VF0396/mig-5.fa.nsq",
+                                 "Escherichia/VFC0235/VF1134/hlyE-clyA.fa",
+                                 "Escherichia/VFC0235/VF1134/hlyE-clyA.fa.ntf",
+                                 "Escherichia/VFC0083/VF1109/tia.fa",
+                                 "Escherichia/VFC0346/VF0215/aatC.fa",
+                                 "Escherichia/VFC0346/VF0215/aatC.fa.nto",
+                                 "Campylobacter/VFC0001/VF0322/cadF.fa",
+                                 "Campylobacter/VFC0001/VF0322/cadF.fa.ndb",
+                                 "Campylobacter/VFC0001/VF0637/Cj1279c.fa",
+                                 "Campylobacter/VFC0001/VF0637/Cj1279c.fa.ndb",
+                                 "Campylobacter/VFC0272/VF0725/Cj0178.fa",
+                                 "Campylobacter/VFC0272/VF0725/Cj0178.fa.nin"]
+}
 
+### End of Database specific section ###
 
-# ---------------------------- Helper Functions ---------------------------- #
-
-def setup_logging(output_dir: Path):
-
-    log_file_path = os.path.join(output_dir, "log.log")
-    logging.basicConfig(
-        level=logging.INFO,
-        format='[%(asctime)s] %(levelname)s: %(message)s',
-        handlers=[
-            logging.FileHandler(log_file_path, mode='w'),
-            logging.StreamHandler(sys.stdout)
-        ]
-    )
-    logging.info("Logging initialized. Output log: %s", log_file_path)
-
-
-def execute_command(cmd: str):
-    """Execute shell command and capture output."""
-    process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stdout, stderr = process.communicate()
-    if stdout:
-        logging.debug(stdout.decode())
-    if stderr:
-        logging.debug(stderr.decode())
-    return process.returncode == 0
-
-
-def download_file_with_retry(url, output_path, max_retries=3, wait_seconds=300):
-    """Download file with retries."""
-    for attempt in range(1, max_retries + 1):
-        try:
-            response = requests.get(url, stream=True, timeout=60)
-            if response.status_code == 200:
-                logging.info("Downloading %s...", os.path.basename(output_path))
-                with open(output_path, "wb") as f:
-                    for chunk in response.iter_content(chunk_size=8192):
-                        if chunk:
-                            f.write(chunk)
-                return True
-            else:
-                logging.warning("Attempt %d failed with status %d", attempt, response.status_code)
-        except Exception as e:
-            logging.warning("Attempt %d failed: %s", attempt, str(e))
-        if attempt < max_retries:
-            logging.info("Waiting %d seconds before retry...", wait_seconds)
-            time.sleep(wait_seconds)
-    logging.error("Failed to download %s after %d attempts.", url, max_retries)
-    return False
-
-
-def file_md5sum(path):
-    """Compute md5 checksum of a file."""
-    h = hashlib.md5()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(8192), b""):
-            h.update(chunk)
-    return h.hexdigest()
-
-
-def vfdb_server_available():
-    """Check VFDB server availability."""
-    try:
-        response = requests.head(VFDB_HOME, timeout=10)
-        return response.status_code == 200
-    except Exception:
-        return False
-
+def get_timestamp():
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 def read_fasta(fasta_path):
     """Parse FASTA file into dict {header: sequence}."""
@@ -127,110 +96,265 @@ def extract_info_from_header(header, bis=0):
     return [match.group(i) for i in range(1, 8)]
 
 
-def run_blast(lista_plikow, start, end):
-    """Run makeblastdb on FASTA files in parallel."""
-    for plik in lista_plikow[start:end]:
-        execute_command(f"makeblastdb -in {plik} -dbtype nucl")
-    return True
+def _makeblastdb_one(path: str, logger: logging.Logger) -> tuple[str, bool]:
+    ok = _execute_command(["makeblastdb", "-in", path, "-dbtype", "nucl"], logger=logger)
+    return path, ok
 
-### Main function ###
-@click.command()
-@click.option("-o", "--output_dir", required=True, type=click.Path(), help="Output directoryfor vfdb")
-@click.option("-c", "--cpus", default=4, show_default=True, help="Number of CPUs for BLAST indexing")
-@click.option("-r", "--max_retries", default=3, show_default=True, help="Maximum retries for downloads")
-@click.option("-w", "--wait_seconds", default=300, show_default=True, help="Seconds to wait between retries")
-def main(output_dir, cpus, max_retries, wait_seconds):
+def download_vfdb_raw_files(
+    output_dir: Path,
+    reference_url: str,
+    logger: logging.Logger,
+    expected_raw_files: List[str],
+    max_retries: int = 3,
+    interval: int = 300,
+) -> Dict[str, Any]:
 
-    ### check if output dir for vfdb exists, if not create it
-    output_dir = Path(output_dir)
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir, exist_ok=True)
+    started_at = get_timestamp()
 
-    # Initialize log.log file in vfdb directory
-    start_time = datetime.now()
-    setup_logging(output_dir)
-    logging.info("=== VFDB Downloader started ===")
+    # Backup existing files (only if they exist)
+    for file_name in expected_raw_files:
+        file_local_path = output_dir / file_name
+        file_local_path_old = output_dir / f"{file_name}.old"
 
-    # Check VFDB availability
-    # do nothing if server is unavailable
-    if not vfdb_server_available():
-        logging.warning("VFDB server unavailable. Skipping update for now.")
-        sys.exit(0)
+        if file_local_path.exists():
+            # remove stale backup to avoid confusion
+            if file_local_path_old.exists():
+                file_local_path_old.unlink()
+            os.replace(file_local_path, file_local_path_old)
 
-    # vfdb_md5.json stores md5sum of relevant files from a previous attempt to download data
-    # if VFDB is available and relevant files are identical to what we have we will skip the update
-    # if files have different md5sum we clean the directory and process the data
-    md5_path = os.path.join(output_dir, "vfdb_md5.json")
-    old_md5 = {}
+    failed_file: Optional[str] = None
+    attempts_used_max = 1
 
-    if os.path.exists(md5_path):
-        with open(md5_path, "r") as f:
-            old_md5 = json.load(f)
+    for file_name in expected_raw_files:
+        url = f"{reference_url.rstrip('/')}/{file_name}"
+        file_local_path = output_dir / file_name
+
+        ok, attempts_used = _download_file_with_retry(
+            url=url,
+            output_path=file_local_path,
+            logger=logger,
+            max_retries=max_retries,
+            wait_seconds=interval,
+        )
+        attempts_used_max = max(attempts_used_max, attempts_used)
+
+        if not ok:
+            failed_file = file_name
+            break
+
+    finished_at = get_timestamp()
+
+    if failed_file is not None:
+        # Restore old files
+        for file_name in expected_raw_files:
+            local_path = output_dir / file_name
+            old_path = output_dir / f"{file_name}.old"
+
+            if local_path.exists():
+                local_path.unlink()
+            if old_path.exists():
+                os.replace(old_path, local_path)
+
+        return {
+            "status": StatusType.FAILED.value,
+            "message": f"Failed to download requested file: {failed_file}",
+            "started_at": started_at,
+            "finished_at": finished_at,
+            "attempts": attempts_used_max,
+            "retryable": True,
+            "metrics": {
+                "failed_file": failed_file,
+                "files_total": len(expected_raw_files),
+                "reference_url": reference_url,
+            },
+        }
+
+    # Success: remove backups
+    for file_name in expected_raw_files:
+        old_path = output_dir / f"{file_name}.old"
+        if old_path.exists():
+            old_path.unlink()
+
+    return {
+        "status": StatusType.PASSED.value,
+        "message": "All raw files downloaded successfully",
+        "started_at": started_at,
+        "finished_at": finished_at,
+        "attempts": attempts_used_max,
+        "retryable": True,
+        "metrics": {
+            "files_total": len(expected_raw_files),
+            "files_downloaded": len(expected_raw_files),
+            "reference_url": reference_url,
+        },
+    }
 
 
 
-    # if 'old' source files are inside directory (they should be) rename them to old
-    # if update is required they will be simply removed
-    # if update is not required we will restore their original name
-    for file_name in FILES:
-        if os.path.exists(os.path.join(output_dir, file_name)):
-            os.rename(os.path.join(output_dir, file_name), os.path.join(output_dir, file_name + '.old'))
+def determine_update_status_checksum_manifest(
+    output_dir: Path,
+    expected_raw_files: List[str],
+    logger: logging.Logger,
+    md5_filename: str = "vfdb_md5.json",
+    keep_dirs: Tuple[str, ...] = ("logs",'reports',),
+) -> Tuple[Dict[str, Any], Dict[str, Any], bool, Dict[str, str]]:
+    """
+    Compare MD5 checksums for expected raw files with previously stored manifest.
+    Returns:
+      milestone_dict,
+      update_decision_kwargs (for ReportBuilder.set_update_decision),
+      update_required,
+      new_md5
+    """
 
+    started_at = get_timestamp()
+    first_build = False
 
-    # Donload files from VFDB and compare md5sum to current version
-    updated_files = []
-    for file_name in FILES:
-        url = f"{VFDB_BASE_URL}/{file_name}"
-        local_path = os.path.join(output_dir, file_name)
+    md5_path = output_dir / md5_filename
 
-        # Failed download abort everything
-        if not download_file_with_retry(url, local_path, max_retries, wait_seconds):
-            if os.path.exists(local_path + ".old"):
-                os.rename(local_path + ".old", local_path)
-            sys.exit(1)
-
-        # Calculate md5sum of a new file
-        new_md5 = file_md5sum(local_path)
-        if old_md5.get(file_name) == new_md5:
-            logging.info("%s unchanged (MD5 match). Skipping update.", file_name)
-            # remove old file (identical to one just downloaded)
-            if os.path.exists(local_path + ".old"):
-                os.remove(local_path + ".old")
-        else:
-            # we need to update our database
-            updated_files.append(file_name)
-            old_md5[file_name] = new_md5
-            # remove old file as well we only need new one
-            if os.path.exists(local_path + ".old"):
-                os.remove(local_path + ".old")
-
-    # updated_files is empty no need to update
-    if not updated_files:
-        logging.info("All VFDB files are up to date. Nothing to do.")
-        sys.exit(0)
+    # Load old checksums (or init empty baseline)
+    if md5_path.exists():
+        with open(md5_path, "r", encoding="utf-8") as f:
+            old_md5: Dict[str, str] = json.load(f)
     else:
-        # clean all subdirectories in output_dir / vfdb we will store new results there
-        _ = [shutil.rmtree(os.path.join(output_dir, d)) for d in os.listdir(output_dir) if os.path.isdir(os.path.join(output_dir, d))]
+        old_md5 = {}
+        first_build = True
+
+    new_md5: Dict[str, str] = {}
+    changed_files: List[str] = []
+
+    # Compute new checksums and determine if it's different from its predecessor
+    for file_name in expected_raw_files:
+        local_path = output_dir / file_name
+        checksum = file_md5sum(str(local_path))
+        new_md5[file_name] = checksum
+
+        if old_md5.get(file_name, "") != checksum:
+            changed_files.append(file_name)
+
+    finished_at = get_timestamp()
 
 
-    # Save updated md5s
-    with open(md5_path, "w") as f:
-        json.dump(old_md5, f, indent=2)
+    update_required = (not md5_path.exists()) or (len(changed_files) > 0)
 
-    # Decompress all files not only one that is beeing updated
-    for f in FILES:
-        if f.endswith(".gz"):
-            execute_command(f"gunzip -f {os.path.join(output_dir, f)}")
+    if update_required:
+        msg = "Update required: checksum change detected." if md5_path.exists() else "No previous manifest: treating as first build."
+        logger.info("%s Changed files: %s", msg, ", ".join(changed_files) if changed_files else "(baseline)")
 
-    fasta_path = os.path.join(output_dir, "VFDB_setB_nt.fas")
-    if not os.path.exists(fasta_path):
-        logging.error("Missing VFDB_setB_nt.fas after decompression.")
-        sys.exit(1)
+        # WE clean up all the subdirecotirs that hold processed files (we only keep log subdirectory, and file in the output dir)
 
-    # Parse and organize FASTA
-    logging.info("Parsing FASTA and organizing directory structure...")
-    seq_dict = read_fasta(fasta_path)
-    vfdb_dict = {}
+        _dir_removal(directory=output_dir,
+                    keep_dirs=keep_dirs,
+                    logger=logger)
+
+        milestone = {
+            "status": StatusType.PASSED.value,
+            "message": msg,
+            "started_at": started_at,
+            "finished_at": finished_at,
+            "attempts": 1,
+            "retryable": False,
+            "metrics": {
+                "md5_manifest_path": str(md5_path),
+                "manifest_present": md5_path.exists(),
+                "update_required": True,
+                "changed_files": changed_files,
+            },
+        }
+
+        # Save the md5sums for future reference
+        with open(md5_path, "w", encoding="utf-8") as f:
+            json.dump(new_md5, f, indent=2)
+
+
+        update_decision = {
+            "mode": "checksum_manifest",
+            "result": "updated",
+            "message": msg,
+            "checksums_before": [{"file_name": k, "checksum": v} for k, v in old_md5.items()],
+            "checksums_after": [{"file_name": k, "checksum": v} for k, v in new_md5.items()],
+            "first_build": first_build,
+        }
+
+        return milestone, update_decision, True, new_md5
+
+    # No changes detected
+    msg = "No update required: checksums match previous manifest."
+    logger.info("%s", msg)
+
+    milestone = {
+        "status": StatusType.PASSED.value,
+        "message": msg,
+        "started_at": started_at,
+        "finished_at": finished_at,
+        "attempts": 1,
+        "retryable": False,
+        "metrics": {
+            "md5_manifest_path": str(md5_path),
+            "manifest_present": True,
+            "update_required": False,
+            "changed_files": [],
+        },
+    }
+
+    update_decision = {
+        "mode": "checksum_manifest",
+        "result": "latest_version_present",
+        "message": msg,
+        "checksums_before": [{"file_name": k, "checksum": v} for k, v in old_md5.items()],
+        "checksums_after": [{"file_name": k, "checksum": v} for k, v in new_md5.items()],
+        "first_build": first_build,
+    }
+
+    return milestone, update_decision, False, new_md5
+
+
+
+def process_vfdb(
+    output_dir: Path,
+    expected_raw_files: List[str],
+    logger: logging.Logger,
+    cpus: int = 8,
+) -> Dict[str, Any]:
+
+    started_at = get_timestamp()
+
+    # 1) Decompress expected raw files that are gz
+    for fname in expected_raw_files:
+        p = output_dir / fname
+        if p.name.endswith(".gz"):
+            ok = _execute_command(cmd = f"gunzip -f {p}",
+                                  logger=logger)
+            if not ok:
+                return {
+                    "status": StatusType.FAILED.value,
+                    "message": f"Failed to gunzip {p.name}",
+                    "started_at": started_at,
+                    "finished_at": get_timestamp(),
+                    "attempts": 1,
+                    "retryable": False,
+                    "metrics": {"file": p.name},
+                }
+
+    fasta_path = output_dir / "VFDB_setB_nt.fas"
+
+    if not fasta_path.exists():
+        return {
+            "status": StatusType.FAILED.value,
+            "message": "Missing VFDB_setB_nt.fas after decompression.",
+            "started_at": started_at,
+            "finished_at": get_timestamp(),
+            "attempts": 1,
+            "retryable": False,
+            "metrics": {"expected": str(fasta_path)},
+        }
+
+    # 2) Parse and organize FASTA
+    logger.info("Parsing FASTA and organizing directory structure...")
+    seq_dict = read_fasta(str(fasta_path))
+    vfdb_dict: Dict[str, Dict[str, Dict[str, str]]] = {}
+
+    skipped_headers = 0
 
     for header, seq in seq_dict.items():
         try:
@@ -239,41 +363,311 @@ def main(output_dir, cpus, max_retries, wait_seconds):
             try:
                 seq_id, gene, VF_name, VF_id, VFC_name, VFC_id, org = extract_info_from_header(header, bis=1)
             except Exception:
-                logging.warning("Skipping sequence: %s", header)
+                skipped_headers += 1
+                logger.warning("Skipping sequence header (unparsed): %s", header)
                 continue
 
-        gene = gene.replace("/", "-").replace("*", "-").replace("'", "-").replace(" ", "-").replace("<", "-").replace(">", "-")
+        gene = (
+            gene.replace("/", "-")
+                .replace("*", "-")
+                .replace("'", "-")
+                .replace(" ", "-")
+                .replace("<", "-")
+                .replace(">", "-")
+        )
         gene = re.sub(r"[()]", "", gene)
-        key_path = f"{org}/{VFC_id}/{VF_id}"
 
+        key_path = f"{org}/{VFC_id}/{VF_id}"
         vfdb_dict.setdefault(key_path, {}).setdefault(gene, {})[header] = seq
 
+    files_written = 0
+
     for dir_path, genes in vfdb_dict.items():
-        full_dir = os.path.join(output_dir, dir_path)
-        os.makedirs(full_dir, exist_ok=True)
+        full_dir = output_dir / dir_path
+        full_dir.mkdir(parents=True, exist_ok=True)
         for gene, seqs in genes.items():
-            with open(os.path.join(full_dir, f"{gene}.fa"), "w") as f:
+            out_fa = full_dir / f"{gene}.fa"
+            with open(out_fa, "w", encoding="utf-8") as f:
                 for h, s in seqs.items():
                     f.write(f"{h}\n{s}\n")
+            files_written += 1
+
+    # 3) Build BLAST indices
+    logger.info("Creating BLAST indices...")
+    fasta_files = glob.glob(str(output_dir / "**" / "*.fa"), recursive=True)
+
+    if not fasta_files:
+        return {
+            "status": StatusType.FAILED.value,
+            "message": "No .fa files were produced for BLAST indexing.",
+            "started_at": started_at,
+            "finished_at": get_timestamp(),
+            "attempts": 1,
+            "retryable": False,
+            "metrics": {"files_written": files_written},
+        }
+
 
     # Run makeblastdb in parallel
-    logging.info("Creating BLAST indices...")
-    fasta_files = glob.glob(os.path.join(output_dir, "**/*.fa"), recursive=True)
-    pool = Pool(cpus)
-    step = len(fasta_files) // cpus or 1
-    jobs = [pool.apply_async(run_blast, (fasta_files, i, min(i + step, len(fasta_files))))
-            for i in range(0, len(fasta_files), step)]
-    pool.close()
-    pool.join()
+    worker = partial(_makeblastdb_one, logger=logger)
 
-    # gzip back files for next update
-    for f in ['VFs.xls', 'VFDB_setB_nt.fas']:
-        execute_command(f"gzip {os.path.join(output_dir, f)}")
+    with ThreadPool(cpus) as pool:
+        results = pool.map(worker, fasta_files)
 
-    end_time = datetime.now()
-    logging.info("=== VFDB Downloader finished successfully ===")
-    logging.info("Total runtime: %s", str(end_time - start_time).split(".")[0])
+    failed_files = [p for (p, ok) in results if not ok]
+    failed = len(failed_files)
 
 
-if __name__ == "__main__":
-    main()
+
+    if failed > 0:
+        return {
+            "status": StatusType.FAILED.value,
+            "message": f"makeblastdb failed for {failed} files.",
+            "started_at": started_at,
+            "finished_at": get_timestamp(),
+            "attempts": 1,
+            "retryable": False,
+            "metrics": {"fasta_files": len(fasta_files), "failed": failed},
+        }
+
+    # 4) gzip back specific raw files
+    for fname in ("VFs.xls", "VFDB_setB_nt.fas"):
+        p = output_dir / fname
+        if p.exists():
+            ok = _execute_command(f"gzip -f {p}", logger)
+            if not ok:
+                return {
+                    "status": StatusType.FAILED.value,
+                    "message": f"Failed to gzip {p.name}",
+                    "started_at": started_at,
+                    "finished_at": get_timestamp(),
+                    "attempts": 1,
+                    "retryable": False,
+                    "metrics": {"file": p.name},
+                }
+
+    return {
+        "status": StatusType.PASSED.value,
+        "message": "Processing completed successfully.",
+        "started_at": started_at,
+        "finished_at": get_timestamp(),
+        "attempts": 1,
+        "retryable": False,
+        "metrics": {
+            "headers_total": len(seq_dict),
+            "headers_skipped": skipped_headers,
+            "fa_files_written": files_written,
+            "blast_jobs": len(fasta_files),
+        },
+    }
+
+### Main function will be turned into CLI with click in the future ####
+### some info for future reference
+### host is the name of the host where code was executed, if not provided program will try to guess
+### user is name of the user who run the script, if not provided program will try to guess and
+### output_dir path where all processing of this database takes place
+
+def main(workspace: str | None = None,
+         run_id: str | None = None,
+         container_image: str | None = None,
+         report_file: str | None = None,
+         log_file: str  = 'log.log',
+         user: str | None = None,
+         host: str | None = None,
+         output_dir: str | None = None,
+         cpus: int = 40
+         ) -> None:
+
+
+    ### create a unique id for this process
+    if not run_id:
+        run_id = generate_run_id(DATABASE["name"])
+
+    ### setup output dir
+    if not output_dir:
+        output_dir = str(Path.cwd() / DATABASE["name"])  # choose your preferred default
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    ### setup output dir
+    if not os.path.exists(output_dir):
+        os.makedirs(os.path.dirname(output_dir), exist_ok=True)
+
+
+    # logging
+
+    log_dir = output_dir / "logs"
+    if run_id not in Path(log_file).stem:
+        log_file = Path(log_file).stem + f"_{run_id}" + Path(log_file).suffix
+
+    logger = _setup_logging(output_dir = log_dir, filename = log_file)
+
+    ### execution context is dynamic
+    execution_context = {
+        "workspace": workspace,
+        "user": user if user else getpass.getuser(),
+        "host": host if host else socket.gethostname(),
+        "container_image": container_image,
+    }
+
+    ### set up report file
+    if report_file is None:
+        report_file = f"{run_id}.json"
+    else:
+        if run_id not in report_file:
+            report_file = f"{run_id}.json"
+
+    report_dir = output_dir / "reports"
+    Path(report_dir).mkdir(parents=True, exist_ok=True)
+
+    # set up report json schema
+    rb = ReportBuilder.start(
+        schema_version=SCHEMA_VERSION,
+        database=DATABASE,
+        execution_context=execution_context,
+        run_id=run_id,
+        source=SOURCE,
+        log_file=str(report_dir / report_file),
+    )
+
+    ### AutoFill remaining Milestones in the report
+    def skip_remaining_steps(remaining_steps: list[str], reason: str) -> None:
+        """
+        Adds milestones with SKIPPED status, for 'downstream' milestones with an identical message
+        """
+        for step in remaining_steps:
+            rb.add_skipped(step, reason)
+
+
+    ### STEPS ###
+    # -----------------------------
+    # 1) PREFLIGHT_CONNECTIVITY
+    # -----------------------------
+    pre = check_url_available("https://www.google.com", retries=3, interval=10, logger=logger)
+    rb.add_named_milestone("PREFLIGHT_CONNECTIVITY", pre)
+    ALL_STEPS.remove("PREFLIGHT_CONNECTIVITY")
+
+    if pre["status"] != StatusType.PASSED.value:
+        skip_remaining_steps(ALL_STEPS, "Skipped due to failed preflight connectivity.")
+        rb.fail(
+            code="NO_INTERNET",
+            message=f"Preflight connectivity failed: {pre.get('message', '')}",
+            retry_recommended=True,
+        )
+        rb.finalize("FAIL")
+        rb.write(str(report_dir / report_file))
+        return
+
+    # -----------------------------
+    # 2) DATABASE_AVAILABILITY
+    # -----------------------------
+
+    db_access = check_url_available(SOURCE['reference'], retries=3, interval=30, logger=logger)
+    rb.add_named_milestone("DATABASE_AVAILABILITY", db_access)
+    ALL_STEPS.remove("DATABASE_AVAILABILITY")
+
+
+    if db_access["status"] != StatusType.PASSED.value:
+        skip_remaining_steps(ALL_STEPS, "Skipped due to failed database availability check.")
+        rb.fail(
+            code="DATABASE_UNAVAILABLE",
+            message=f"VFDB endpoint not reachable: {db_access.get('message', '')}",
+            retry_recommended=True,
+        )
+        rb.finalize("FAIL")
+        rb.write(str(report_dir / report_file))
+        return
+
+    # -----------------------------
+    # 3) Download database
+    # -----------------------------
+
+    STEP = 'REMOTE_FILES_DOWNLOAD_STATUS'
+    downloading_report = download_vfdb_raw_files(
+        output_dir=output_dir,
+        reference_url=SOURCE["reference"],
+        expected_raw_files=SOURCE["expected_raw_files"],
+        logger=logger,
+        max_retries=3,
+        interval=300,
+    )
+    rb.add_named_milestone(STEP, downloading_report)
+    ALL_STEPS.remove(STEP)
+    if downloading_report["status"] != StatusType.PASSED.value:
+        skip_remaining_steps(ALL_STEPS, "Skipped: failed to download raw files.")
+        rb.finalize("FAIL")
+        rb.write(str(report_dir / report_file))
+        return
+
+    # -----------------------------
+    # Determine UPDATE_STATUS
+    # -----------------------------
+    STEP = "UPDATE_STATUS"
+
+    milestone, update_decision, update_required, _new_md5 = determine_update_status_checksum_manifest(
+        output_dir=output_dir,
+        expected_raw_files=SOURCE["expected_raw_files"],
+        logger=logger,
+        md5_filename="vfdb_md5.json",
+        keep_dirs=("logs", "reports"),
+    )
+
+    rb.add_named_milestone(STEP, milestone)
+    ALL_STEPS.remove(STEP)
+
+    rb.set_update_decision(**update_decision)
+
+    if milestone["status"] != StatusType.PASSED.value:
+        skip_remaining_steps(ALL_STEPS, "Skipped: Failed update step.")
+        rb.fail(code="UPDATE_DECISION_FAILED", message=milestone["message"], retry_recommended=False)
+        rb.finalize("FAIL")
+        rb.write(str(report_dir / report_file))
+        return
+
+    if not update_required:
+        skip_remaining_steps(ALL_STEPS, "Skipped: latest version already present.")
+        rb.finalize("SKIPPED")
+        rb.write(str(report_dir / report_file))
+        return
+
+    # ---------------------------------------------------------
+    # Process files
+    # ---------------------------------------------------------
+
+    STEP = "PROCESSING_STATUS"
+    proc = process_vfdb(
+        output_dir=output_dir,
+        expected_raw_files=SOURCE["expected_raw_files"],
+        logger=logger,
+        cpus=cpus,
+    )
+    rb.add_named_milestone(STEP, proc)
+    ALL_STEPS.remove(STEP)
+
+    if proc["status"] != StatusType.PASSED.value:
+        skip_remaining_steps(ALL_STEPS, "Skipped: processing failed.")
+        rb.fail(code="PROCESSING_FAILED", message=proc["message"], retry_recommended=False)
+        rb.finalize("FAIL")
+        rb.write(str(report_dir / report_file))
+        return
+
+    # ---------------------------------------------------------
+    # Final check
+    # ---------------------------------------------------------
+
+    STEP = "FINAL_STATUS"
+    final = verify_expected_files(
+        base_dir=output_dir,
+        expected_files=SOURCE["expected_processed_files"],
+    )
+    rb.add_named_milestone(STEP, final)
+    ALL_STEPS.remove(STEP)
+
+    if final["status"] != StatusType.PASSED.value:
+        rb.fail(code="FINAL_STATUS_FAILED", message=final["message"], retry_recommended=False)
+        rb.finalize("FAIL")
+        rb.write(str(report_dir / report_file))
+        return
+
+    rb.finalize("PASS")
+    rb.write(str(report_dir / report_file))
