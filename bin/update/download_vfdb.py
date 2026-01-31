@@ -21,6 +21,7 @@ from functools import partial
 import glob
 import logging
 from  typing import List, Dict, Optional, Any, Tuple
+import click
 
 ### Database specific section ###
 #################################
@@ -461,21 +462,26 @@ def process_vfdb(
         },
     }
 
-### Main function will be turned into CLI with click in the future ####
-### some info for future reference
-### host is the name of the host where code was executed, if not provided program will try to guess
-### user is name of the user who run the script, if not provided program will try to guess and
-### output_dir path where all processing of this database takes place
 
+@click.command()
+@click.option("--workspace", type=str, help="Workspace path.", required=True)
+@click.option("--run_id", type=str, default=None, help="Unique run ID.")
+@click.option("--container_image", type=str, help="Container image name.", required=True)
+@click.option("--report_file", type=str, default=None, help="Report file name.")
+@click.option("--log_file", type=str, default="log.log", help="Log file name.")
+@click.option("--user", type=str, help="User name.", required=True)
+@click.option("--host", type=str, help="Host name.", required=True)
+@click.option("--output_dir", type=str, default=str(Path.cwd() / "vfdb_data"), help="Output directory.")
+@click.option("--cpus", type=int, default=40, help="Number of CPUs.")
 def main(workspace: str | None = None,
          run_id: str | None = None,
          container_image: str | None = None,
          report_file: str | None = None,
-         log_file: str  = 'log.log',
+         log_file: str  | None = None,
          user: str | None = None,
          host: str | None = None,
          output_dir: str | None = None,
-         cpus: int = 40
+         cpus: int | None = None,
          ) -> None:
 
 
@@ -671,3 +677,6 @@ def main(workspace: str | None = None,
 
     rb.finalize("PASS")
     rb.write(str(report_dir / report_file))
+    
+if __name__ == '__main__':
+    main()
