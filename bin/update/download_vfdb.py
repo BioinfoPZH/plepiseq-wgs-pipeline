@@ -473,15 +473,15 @@ def process_vfdb(
 @click.option("--host", type=str, help="Host name.", required=True)
 @click.option("--output_dir", type=str, default=str(Path.cwd() / "vfdb_data"), help="Output directory.")
 @click.option("--cpus", type=int, default=40, help="Number of CPUs.")
-def main(workspace: str | None = None,
+def main(workspace: str,
+         container_image: str,
+         user: str,
+         host: str,
          run_id: str | None = None,
-         container_image: str | None = None,
          report_file: str | None = None,
-         log_file: str  | None = None,
-         user: str | None = None,
-         host: str | None = None,
-         output_dir: str | None = None,
-         cpus: int | None = None,
+         log_file: str = "log.log",
+         output_dir: str = str(Path.cwd() / "vfdb_data"),
+         cpus: int = 40,
          ) -> None:
 
 
@@ -494,11 +494,6 @@ def main(workspace: str | None = None,
         output_dir = str(Path.cwd() / DATABASE["name"])  # choose your preferred default
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-
-    ### setup output dir
-    if not os.path.exists(output_dir):
-        os.makedirs(os.path.dirname(output_dir), exist_ok=True)
-
 
     # logging
 
