@@ -70,9 +70,6 @@ update_pangolin() {
 }
 
 # Kraken2
-## For kraken2 there has an update procedure so we do not remove iby default 
-## all the files from /home/external_databases/kraken2
-
 update_kraken2() {
     local kraken2_type=$1
     if [ ! -d "/home/external_databases/kraken2" ]; then
@@ -90,41 +87,13 @@ update_kraken2() {
 }
 
 # Freyja
-## No update procedure so we remove data if directory is present 
 update_freyja() {
-    if [ -d "/home/external_databases/freyja" ]; then
-	    rm -rf /home/external_databases/freyja/*
-    else
-	    mkdir /home/external_databases/freyja
-    fi
+    python3 -u /home/update/download_freyja.py --workspace "${UPDATER_WORKSPACE}" \
+                                               --container_image "${UPDATER_CONTAINER_IMAGE}" \
+                                               --user "${UPDATER_USER}" \
+                                               --host "${UPDATER_HOST}" \
+                                               --output_dir /home/external_databases/freyja
 
-    cd /home/external_databases/freyja
-
-    mkdir H1N1 H3N2 H5Nx FLU-B-VIC RSVa RSVb sarscov2
-    
-    cd sarscov2
-      wget https://raw.githubusercontent.com/andersen-lab/Freyja-data/main/lineages.yml
-      wget https://raw.githubusercontent.com/andersen-lab/Freyja-data/main/curated_lineages.json
-      wget https://github.com/andersen-lab/Freyja-data/raw/main/usher_barcodes.csv
-    cd ..
-
-    ALL_SPECIES=(H1N1 H3N2 H5Nx FLU-B-VIC RSVa RSVb)
-    for SPECIES in ${ALL_SPECIES[@]}
-    do
-	cd ${SPECIES}
-          wget https://raw.githubusercontent.com/andersen-lab/Freyja-barcodes/refs/heads/main/${SPECIES}/latest/barcode.csv
-          wget https://raw.githubusercontent.com/andersen-lab/Freyja-barcodes/refs/heads/main/${SPECIES}/latest/reference.fasta
-          wget https://raw.githubusercontent.com/andersen-lab/Freyja-barcodes/refs/heads/main/${SPECIES}/latest/auspice_tree.json
-	cd ..
-    done 
-
-    mv FLU-B-VIC Victoria
-    mv RSVa RSV_A
-    mv RSVb RSV_B
-    # Other organisms available in Freyja, but not required in PlEpiSeq.
-    # wget -O MEASLESN450_barcodes.csv https://raw.githubusercontent.com/andersen-lab/Freyja-barcodes/refs/heads/main/MEASLESN450/latest/barcode.csv
-    # wget -O mpox_barcodes.csv https://raw.githubusercontent.com/andersen-lab/Freyja-barcodes/refs/heads/main/MPX/latest/barcode.csv
-    # wget -O MEASLESwholegenome_barcodes.csv https://raw.githubusercontent.com/andersen-lab/Freyja-barcodes/refs/heads/main/MEASLESgenome/latest/barcode.csv
     return $?
 }
 
