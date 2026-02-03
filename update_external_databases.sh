@@ -187,4 +187,8 @@ echo "Downloading all databases may take several hours"
 docker run --rm \
        --volume "${output}:/home/external_databases:rw" \
        --user $(id -u):$(id -g) \
+       -e UPDATER_CONTAINER_IMAGE="${image_name}" \
+       -e UPDATER_USER="$(id -un)" \
+       -e UPDATER_HOST="$(hostname)" \
+       -e UPDATER_WORKSPACE="${output}" \
        ${image_name} ${database} ${kraken_type} ${genus} ${cpus}

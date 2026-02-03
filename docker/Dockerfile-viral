@@ -522,7 +522,7 @@ COPY VERSION /VERSION
 WORKDIR /home
 
 # updater container
-FROM python:3.8-slim-bookworm AS updater
+FROM python:3.11-slim-bookworm AS updater
 ARG CERT_FILE
 ARG PIP_TIMEOUT
 ARG PIP_INDEX_URL

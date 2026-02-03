@@ -79,9 +79,12 @@ update_kraken2() {
 	    mkdir /home/external_databases/kraken2
     fi
 
-    # Scirpt requires two arguments path where data are stored and type of krake database
-    python3 /home/update/kraken_updater.py --local_path /home/external_databases/kraken2 \
-	                                   --db_name "${kraken2_type}"
+    python3 -u /home/update/download_kraken.py --local_path /home/external_databases/kraken2 \
+                                               --db_name "${kraken2_type}" \
+                                               --workspace "${UPDATER_WORKSPACE}" \
+                                               --container_image "${UPDATER_CONTAINER_IMAGE}" \
+                                               --user "${UPDATER_USER}" \
+                                               --host "${UPDATER_HOST}"
 
     return $?
 }
@@ -185,8 +188,12 @@ update_cge_mlstdb() {
 ## No update
 update_vfdb() {
 	local cpus=$1
-  python3 -u /home/update/download_vfdb.py --output_dir /home/external_databases/vfdb \
-                                            --cpus ${cpus}
+  python3 -u /home/update/download_vfdb.py --workspace "${UPDATER_WORKSPACE}" \
+                                           --container_image "${UPDATER_CONTAINER_IMAGE}" \
+                                           --user "${UPDATER_USER}" \
+                                           --host "${UPDATER_HOST}" \
+                                           --output_dir /home/external_databases/vfdb \
+                                           --cpus ${cpus}
 
 }
 
@@ -596,6 +603,30 @@ db_name=$1
 kraken_type=$2
 genus=$3
 cpus=$4
+
+# -------------------------
+# Metadata for Python clients
+# -------------------------
+# These values are used by click-based downloaders (VFDB/Kraken) for report metadata.
+# Prefer values passed in from update_external_databases.sh (outer caller),
+# otherwise fall back to container-derived defaults.
+UPDATER_WORKSPACE="${UPDATER_WORKSPACE:-/home/update}"
+UPDATER_CONTAINER_IMAGE="${UPDATER_CONTAINER_IMAGE:-plepiseq-wgs-pipeline-updater:latest}"
+UPDATER_USER="${UPDATER_USER:-}"
+UPDATER_HOST="${UPDATER_HOST:-}"
+
+if [ -z "${UPDATER_USER}" ]; then
+    _u="$(id -un 2>/dev/null || true)"
+    if [ -z "${_u}" ] || [ "${_u}" == "unknown" ]; then
+        UPDATER_USER="uid_$(id -u)"
+    else
+        UPDATER_USER="${_u}"
+    fi
+fi
+
+if [ -z "${UPDATER_HOST}" ]; then
+    UPDATER_HOST="$(hostname -f 2>/dev/null || hostname)"
+fi
 
 if [ ${db_name} == "all" ];then
         echo "Downloading data for kraken2 at: $(date +"%H:%M %d-%m-%Y")"
