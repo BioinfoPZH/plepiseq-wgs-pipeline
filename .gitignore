@@ -16,6 +16,18 @@ trace-*.txt
 .idea/*
 !.idea/runConfigurations
 
+# cursor
+.vscode/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
 ### Vim ###
 [._]*.s[a-v][a-z]
 [._]*.sw[a-p]
@@ -39,6 +51,10 @@ external_databases/freyja
 third-party/modeller/config.py
 
 python_tests/__pycache__
+
+# pycache
+bin/update/__pycache__/
+bin/update/utils/__pycache__/
 
 
 
