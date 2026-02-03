@@ -8,6 +8,8 @@ from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 from utils.updates_helpers import file_md5sum
 from datetime import datetime
+from utils.generic_helpers import get_timestamp
+import json
 
 def s3_client_unsigned():
     """Create an unsigned boto3 S3 client (public buckets)."""
@@ -19,14 +21,14 @@ def check_s3_connectivity(bucket: str, prefix: str, attempts: int = 3, interval_
     """
     started = None
 
-    started = datetime.utcnow().isoformat() + "Z"
+    started = get_timestamp()
     cli = s3_client_unsigned()
     for attempt in range(1, attempts + 1):
         try:
             if logger:
                 logger.info(f"Checking S3 connectivity (attempt {attempt}/{attempts})...")
             resp = cli.list_objects_v2(Bucket=bucket, Prefix=prefix, MaxKeys=1)
-            finished = datetime.utcnow().isoformat() + "Z"
+            finished = get_timestamp()
             return {
                 "status": "PASSED",
                 "message": "S3 prefix reachable",
@@ -43,7 +45,7 @@ def check_s3_connectivity(bucket: str, prefix: str, attempts: int = 3, interval_
                 import time
                 time.sleep(interval_sec)
             else:
-                finished = datetime.datetime.utcnow().isoformat() + "Z"
+                finished = datetime.utcnow().isoformat() + "Z"
                 return {
                     "status": "FAILED",
                     "message": str(e),
@@ -116,14 +118,17 @@ def download_file_and_extract_s3(bucket: str, key: str, dest_tar_path: str, extr
     try:
         with tarfile.open(dest_tar_path, "r:gz") as tf:
             tf.extractall(path=extract_to)
-    except Exception as e:
+    except Exception:
         raise
     # compute md5
 
     md5 = file_md5sum(dest_tar_path)
     # write current_md5.txt
-    with open(os.path.join(extract_to, "current_md5.txt"), "w", encoding="utf-8") as f:
-        f.write(md5 + "\n")
+    tar_name = os.path.basename(dest_tar_path)
+    new_md5 = {tar_name: md5}
+    with open(os.path.join(extract_to, "current_md5.json"), "w", encoding="utf-8") as f:
+        json.dump(new_md5, f, indent=2)
+
     # remove tar
     try:
         os.remove(dest_tar_path)
