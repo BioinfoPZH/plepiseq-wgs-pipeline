@@ -502,7 +502,7 @@ def main(workspace: str,
 
     ### execution context is dynamic
     execution_context = {
-        "workspace": workspace,
+        "workspace": f"{workspace}/vfdb" or str(Path.cwd()),
         "user": user if user else getpass.getuser(),
         "host": host if host else socket.gethostname(),
         "container_image": container_image,
@@ -525,7 +525,7 @@ def main(workspace: str,
         execution_context=execution_context,
         run_id=run_id,
         source=SOURCE,
-        log_file=str(report_dir / report_file),
+        log_file=f"{workspace}/vfdb/reports/{report_file}",
     )
 
     ### AutoFill remaining Milestones in the report
