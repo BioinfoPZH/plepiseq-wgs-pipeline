@@ -55,7 +55,7 @@ class ReportBuilder:
                 "first_build": True
             },
             "source": source,
-            "log_file": Path(log_file).name,
+            "log_file": log_file,
             "milestones": []
         }
         return cls(report=rep)
