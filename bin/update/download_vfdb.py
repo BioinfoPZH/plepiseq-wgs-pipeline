@@ -469,7 +469,7 @@ def process_vfdb(
 @click.option("--log_file", type=str, default="log.log", help="Log file name.")
 @click.option("--user", type=str, help="User name.", required=True)
 @click.option("--host", type=str, help="Host name.", required=True)
-@click.option("--output_dir", type=str, default=str(Path.cwd() / "vfdb_data"), help="Output directory.")
+@click.option("--output_dir", type=str, default=str(Path.cwd() / "vfdb"), help="Output directory.")
 @click.option("--cpus", type=int, default=40, help="Number of CPUs.")
 def main(workspace: str,
          container_image: str,
