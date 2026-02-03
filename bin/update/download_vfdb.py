@@ -4,7 +4,7 @@ from utils.report import ReportBuilder, ALL_STEPS, SCHEMA_VERSION
 from utils.run_id import generate_run_id
 from utils.updates_helpers import file_md5sum
 from utils.setup_logging import _setup_logging
-from utils.generic_helpers import _dir_removal, _execute_command
+from utils.generic_helpers import _dir_removal, _execute_command, get_timestamp
 from utils.validation import verify_expected_files
 
 import getpass
@@ -12,7 +12,6 @@ import socket
 import os
 import json
 from pathlib import Path
-from datetime import datetime, timezone
 from Bio import SeqIO
 import re
 from multiprocessing.dummy import Pool as ThreadPool
@@ -56,8 +55,7 @@ SOURCE = {
 
 ### End of Database specific section ###
 
-def get_timestamp():
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
 
 def read_fasta(fasta_path):
     """Parse FASTA file into dict {header: sequence}."""
@@ -483,7 +481,6 @@ def main(workspace: str,
          output_dir: str = str(Path.cwd() / "vfdb_data"),
          cpus: int = 40,
          ) -> None:
-
 
     ### create a unique id for this process
     if not run_id:

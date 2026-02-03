@@ -4,6 +4,10 @@ import logging
 import subprocess
 import os
 from typing import Union, Sequence
+from datetime import datetime, timezone
+
+def get_timestamp():
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 def _dir_removal(directory: Path, keep_dirs: tuple[str, ...], logger: logging.Logger):
     logger.info(f"Removing old directories in {directory} except: {keep_dirs}")
