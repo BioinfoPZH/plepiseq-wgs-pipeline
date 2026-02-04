@@ -2,10 +2,12 @@ from dataclasses import dataclass
 from typing import Optional, Tuple, Any
 
 import requests
-from datetime import datetime, timezone
 import time
 from enum import Enum
 import logging
+
+from utils.ftp_helpers import ftp_connect
+from utils.generic_helpers import get_timestamp
 
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows; U; Windows NT 6.1; rv:2.2) Gecko/20110201',
            'accept' : '*/*'}
@@ -96,7 +98,7 @@ def check_url_available(
     # let initiate defaults in casa  code below fails
 
     status = StatusType.FAILED
-    started_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    started_at = get_timestamp()
 
 
     for attempt in range(1, retries + 1):
@@ -110,7 +112,7 @@ def check_url_available(
                 status = status,
                 message=msg,
                 started_at=started_at,
-                finished_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                finished_at=get_timestamp(),
                 attempts=attempt,
                 retryable=True,
                 metrics={'http_status' : exit_code},
@@ -126,10 +128,76 @@ def check_url_available(
         status = status,
         message=f"Failed after {retries} attempt(s)",
         started_at=started_at,
-        finished_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        finished_at=get_timestamp(),
         attempts=retries,
         retryable=True,
         metrics={'http_status': exit_code}
     )
     return results.to_dict()
+
+
+def check_ftp_available(
+    host: str,
+    directory: str,
+    retries: int = 3,
+    interval: int = 30,
+    timeout_s: int = 60,
+    logger: Optional[logging.Logger] = None,
+) -> dict[str, Any]:
+    """
+    Checks whether an FTP host+directory are reachable (connect/login/cwd).
+
+    Returns a milestone-shaped dict (same shape as check_url_available).
+    """
+    started_at = get_timestamp()
+    last_err = ""
+
+    for attempt in range(1, retries + 1):
+        if logger:
+            logger.info("Attempt %d/%d: Checking FTP connectivity to %s:%s", attempt, retries, host, directory)
+        ftp = None
+        try:
+            ftp = ftp_connect(host=host, directory=directory, timeout_s=timeout_s, logger=logger)
+            try:
+                welcome = getattr(ftp, "welcome", "") or ""
+            except Exception:
+                welcome = ""
+            try:
+                pwd = ftp.pwd()
+            except Exception:
+                pwd = ""
+            try:
+                ftp.quit()
+            except Exception:
+                pass
+
+            return UrlAvailabilityResult(
+                status=StatusType.PASSED,
+                message="FTP endpoint reachable",
+                started_at=started_at,
+                finished_at=get_timestamp(),
+                attempts=attempt,
+                retryable=True,
+                metrics={"host": host, "directory": directory, "welcome": welcome[:300], "pwd": pwd},
+            ).to_dict()
+        except Exception as e:
+            last_err = str(e)
+            try:
+                if ftp is not None:
+                    ftp.close()
+            except Exception:
+                pass
+
+            if attempt < retries:
+                time.sleep(interval)
+
+    return UrlAvailabilityResult(
+        status=StatusType.FAILED,
+        message=f"Failed after {retries} attempt(s)",
+        started_at=started_at,
+        finished_at=get_timestamp(),
+        attempts=retries,
+        retryable=True,
+        metrics={"host": host, "directory": directory, "error": last_err[:500]},
+    ).to_dict()
 
