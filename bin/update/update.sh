@@ -58,14 +58,11 @@ update_nextclade() {
 ## No differenc in Updating/Downloading  if /home/external_databases/pangolin directory exist, everything inside it will be removed
 ## --upgrade option in pip had no effect
 update_pangolin() {
-    if [ -d "/home/external_databases/pangolin" ]; then
-        rm -rf /home/external_databases/pangolin/*
-    else 
-        mkdir /home/external_databases/pangolin
-    
-    fi
-
-    pip install --target "/home/external_databases/pangolin" git+https://github.com/cov-lineages/pangolin-data.git
+    python3 -u /home/update/download_pangolin_data.py --workspace "${UPDATER_WORKSPACE}" \
+                                                      --container_image "${UPDATER_CONTAINER_IMAGE}" \
+                                                      --user "${UPDATER_USER}" \
+                                                      --host "${UPDATER_HOST}" \
+                                                      --output_dir /home/external_databases/pangolin
     return $?
 }
 
