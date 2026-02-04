@@ -18,6 +18,7 @@ from utils.net import StatusType, check_url_available
 from utils.report import ALL_STEPS, SCHEMA_VERSION, ReportBuilder
 from utils.run_id import generate_run_id
 from utils.setup_logging import _setup_logging
+from utils.updates_helpers import composite_availability_check
 from utils.validation import get_timestamp, verify_expected_files
 from utils.version_manifest import read_version_manifest, write_version_manifest
 
@@ -486,20 +487,8 @@ def main(
         return
 
     # 2) DATABASE_AVAILABILITY
-    # Check Bitbucket base + repo page (cheap reachability checks).
-    base_ok = check_url_available(BITBUCKET_BASE, retries=3, interval=10, logger=logger)
-    repo_ok = check_url_available(repo_page, retries=3, interval=10, logger=logger)
-    started_at = get_timestamp()
-    finished_at = get_timestamp()
-    avail = {
-        "status": StatusType.PASSED.value if (base_ok["status"] == StatusType.PASSED.value and repo_ok["status"] == StatusType.PASSED.value) else StatusType.FAILED.value,
-        "message": "Bitbucket endpoints reachable" if (base_ok["status"] == StatusType.PASSED.value and repo_ok["status"] == StatusType.PASSED.value) else "Bitbucket endpoint(s) unreachable",
-        "started_at": started_at,
-        "finished_at": finished_at,
-        "attempts": max(int(base_ok.get("attempts", 1) or 1), int(repo_ok.get("attempts", 1) or 1)),
-        "retryable": True,
-        "metrics": {"bitbucket_base": base_ok, "repo_page": repo_ok, "repo_page_url": repo_page},
-    }
+    # Check Bitbucket base + repo page (standardized composite milestone).
+    avail = composite_availability_check([BITBUCKET_BASE, repo_page], logger, retries=3, interval=10)
     rb.add_named_milestone("DATABASE_AVAILABILITY", avail)
     remaining_steps.remove("DATABASE_AVAILABILITY")
     if avail["status"] != StatusType.PASSED.value:

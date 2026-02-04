@@ -16,6 +16,7 @@ from utils.net import StatusType, check_url_available
 from utils.report import ALL_STEPS, SCHEMA_VERSION, ReportBuilder
 from utils.run_id import generate_run_id
 from utils.setup_logging import _setup_logging
+from utils.updates_helpers import composite_availability_check
 from utils.validation import get_timestamp, verify_expected_files
 from utils.version_manifest import read_version_manifest, write_version_manifest
 
@@ -61,42 +62,6 @@ SOURCE = {
 
 FREYJA_DATA_RAW_BASE = "https://raw.githubusercontent.com/andersen-lab/Freyja-data/main"
 FREYJA_BARCODES_RAW_BASE = "https://raw.githubusercontent.com/andersen-lab/Freyja-barcodes/main"
-
-
-def _composite_availability_check(urls: List[str], logger) -> Dict[str, Any]:
-    """
-    Create a single schema-shaped milestone for availability of multiple endpoints.
-    """
-    started_at = get_timestamp()
-    attempts_used_max = 1
-
-    per_url: Dict[str, Any] = {}
-    for u in urls:
-        res = check_url_available(u, retries=3, interval=10, logger=logger)
-        attempts_used_max = max(attempts_used_max, int(res.get("attempts", 1) or 1))
-        per_url[u] = {"status": res.get("status"), "message": res.get("message"), "metrics": res.get("metrics", {})}
-        if res.get("status") != StatusType.PASSED.value:
-            finished_at = get_timestamp()
-            return {
-                "status": StatusType.FAILED.value,
-                "message": f"One or more endpoints unreachable (first failure: {u})",
-                "started_at": started_at,
-                "finished_at": finished_at,
-                "attempts": attempts_used_max,
-                "retryable": True,
-                "metrics": {"checks": per_url},
-            }
-
-    finished_at = get_timestamp()
-    return {
-        "status": StatusType.PASSED.value,
-        "message": "All required endpoints reachable",
-        "started_at": started_at,
-        "finished_at": finished_at,
-        "attempts": attempts_used_max,
-        "retryable": True,
-        "metrics": {"checks": per_url},
-    }
 
 
 def determine_update_status_from_github_commits(
@@ -393,7 +358,7 @@ def main(
         f"{FREYJA_DATA_RAW_BASE}/lineages.yml",
         f"{FREYJA_BARCODES_RAW_BASE}/H1N1/latest/barcode.csv",
     ]
-    avail = _composite_availability_check(urls_to_check, logger)
+    avail = composite_availability_check(urls_to_check, logger, retries=3, interval=10)
     rb.add_named_milestone("DATABASE_AVAILABILITY", avail)
     remaining_steps.remove("DATABASE_AVAILABILITY")
     if avail["status"] != StatusType.PASSED.value:

@@ -6,6 +6,7 @@ from utils.updates_helpers import file_md5sum
 from utils.setup_logging import _setup_logging
 from utils.generic_helpers import _dir_removal, _execute_command, get_timestamp
 from utils.validation import verify_expected_files
+from utils.blast_helpers import run_makeblastdb
 
 import getpass
 import socket
@@ -96,7 +97,7 @@ def extract_info_from_header(header, bis=0):
 
 
 def _makeblastdb_one(path: str, logger: logging.Logger) -> tuple[str, bool]:
-    ok = _execute_command(["makeblastdb", "-in", path, "-dbtype", "nucl"], logger=logger)
+    ok, _m = run_makeblastdb(Path(path), dbtype="nucl", logger=logger)
     return path, ok
 
 def download_vfdb_raw_files(
