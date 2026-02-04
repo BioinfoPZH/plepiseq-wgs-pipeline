@@ -129,29 +129,28 @@ update_kmerfinder() {
     python3  /home/update/download_kmerfinder_db.py -o /home/external_databases/kmerfinder/
 }
 
-# Generic CGE updater
-## No update mechanism for CGE 
-update_cge() {
-	local db=$1
-	if [ -d "/home/external_databases/${db}" ]; then
-		rm -rf /home/external_databases/${db}/
-	fi
-	cd /home/external_databases
-	git clone https://bitbucket.org/genomicepidemiology/${db}/
-	cd ${db}
-	python3 INSTALL.py /home/kma/kma_index non_interactive >> log 2>&1
-}
-
-# MLST db requires binary for kma not kma_interactive  (as of 15.09.2025)
-update_cge_mlstdb() {
+# CGE databases (genomicepidemiology) are updated via a milestone-based python client
+# that uses remote HEAD commit id for update decisions.
+update_cge_db() {
         local db=$1
-        if [ -d "/home/external_databases/${db}" ]; then
-                rm -rf /home/external_databases/${db}/
+        local kma_bin=$2
+
+        if [ -n "${kma_bin}" ]; then
+                python3 -u /home/update/download_cge_db.py --workspace "${UPDATER_WORKSPACE}" \
+                                                           --container_image "${UPDATER_CONTAINER_IMAGE}" \
+                                                           --user "${UPDATER_USER}" \
+                                                           --host "${UPDATER_HOST}" \
+                                                           --db "${db}" \
+                                                           --output_dir "/home/external_databases/${db}" \
+                                                           --kma_binary "${kma_bin}"
+        else
+                python3 -u /home/update/download_cge_db.py --workspace "${UPDATER_WORKSPACE}" \
+                                                           --container_image "${UPDATER_CONTAINER_IMAGE}" \
+                                                           --user "${UPDATER_USER}" \
+                                                           --host "${UPDATER_HOST}" \
+                                                           --db "${db}" \
+                                                           --output_dir "/home/external_databases/${db}"
         fi
-        cd /home/external_databases
-        git clone https://bitbucket.org/genomicepidemiology/${db}/
-        cd ${db}
-        python3 INSTALL.py /home/kma/kma non_interactive >> log 2>&1
 }
 #VFDB
 ## No update
@@ -613,19 +612,19 @@ if [ ${db_name} == "all" ];then
 	echo "Downloading data for metaphlan at: $(date +"%H:%M %d-%m-%Y")"
 	update_metaphlan >> /dev/null 2>&1
 	echo "Downloading data for pointfinder at: $(date +"%H:%M %d-%m-%Y")"
-	update_cge pointfinder_db >> /dev/null 2>&1
+	update_cge_db pointfinder_db >> /dev/null 2>&1
 	echo "Downloading data for disinfinder at: $(date +"%H:%M %d-%m-%Y")"
-	update_cge disinfinder_db >> /dev/null 2>&1
+	update_cge_db disinfinder_db >> /dev/null 2>&1
 	echo "Downloading data for mlst_db at: $(date +"%H:%M %d-%m-%Y")"
-	update_cge_mlstdb mlst_db >> /dev/null 2>&1
+	update_cge_db mlst_db "/home/kma/kma" >> /dev/null 2>&1
 	echo "Downloading data for plasmidfinder at: $(date +"%H:%M %d-%m-%Y")"
-	update_cge plasmidfinder_db >> /dev/null 2>&1
+	update_cge_db plasmidfinder_db >> /dev/null 2>&1
 	echo "Downloading data for resfinder at: $(date +"%H:%M %d-%m-%Y")"
-	update_cge resfinder_db >> /dev/null 2>&1
+	update_cge_db resfinder_db >> /dev/null 2>&1
 	echo "Downloading data for spifinder at: $(date +"%H:%M %d-%m-%Y")"
-	update_cge spifinder_db >> /dev/null 2>&1
+	update_cge_db spifinder_db >> /dev/null 2>&1
 	echo "Downloading data for virulencefinder at: $(date +"%H:%M %d-%m-%Y")"
-	update_cge virulencefinder_db >> /dev/null 2>&1
+	update_cge_db virulencefinder_db >> /dev/null 2>&1
 	echo "Downloading data for vfcb at: $(date +"%H:%M %d-%m-%Y")"
 	update_vfdb ${cpus}
 	echo "Downloading MLST data at: $(date +"%H:%M %d-%m-%Y")"
@@ -655,19 +654,19 @@ elif [ ${db_name} == "kmerfinder" ]; then
 elif [ ${db_name} == "metaphlan" ]; then
         update_metaphlan >> /dev/null 2>&1 
 elif [ ${db_name} == "pointfinder" ]; then
-        update_cge pointfinder_db >> /dev/null 2>&1
+        update_cge_db pointfinder_db >> /dev/null 2>&1
 elif [ ${db_name} == "disinfinder" ]; then
-        update_cge disinfinder_db >> /dev/null 2>&1
+        update_cge_db disinfinder_db >> /dev/null 2>&1
 elif [ ${db_name} == "mlstfinder" ]; then
-        update_cge_mlstdb mlst_db >> /dev/null 2>&1
+        update_cge_db mlst_db "/home/kma/kma" >> /dev/null 2>&1
 elif [ ${db_name} == "plasmidfinder" ]; then
-        update_cge plasmidfinder_db >> /dev/null 2>&1
+        update_cge_db plasmidfinder_db >> /dev/null 2>&1
 elif [ ${db_name} == "resfinder" ]; then
-        update_cge resfinder_db >> /dev/null 2>&1
+        update_cge_db resfinder_db >> /dev/null 2>&1
 elif [ ${db_name} == "spifinder" ]; then
-        update_cge spifinder_db >> /dev/null 2>&1
+        update_cge_db spifinder_db >> /dev/null 2>&1
 elif [ ${db_name} == "virulencefinder" ]; then
-        update_cge virulencefinder_db >> /dev/null 2>&1
+        update_cge_db virulencefinder_db >> /dev/null 2>&1
 elif [ ${db_name} == "vfdb" ]; then
 	update_vfdb ${cpus} >> /dev/null 2>&1 
 elif [ ${db_name} == "mlst" ]; then
