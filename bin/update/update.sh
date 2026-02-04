@@ -106,7 +106,11 @@ update_amrfinder() {
 	if [ ! -d "/home/external_databases/amrfinder_plus" ]; then
 		 mkdir /home/external_databases/amrfinder_plus
 	fi
-        python3 /home/update/download_amrfinder.py --output_dir /home/external_databases/amrfinder_plus
+        python3 -u /home/update/download_amrfinder.py --workspace "${UPDATER_WORKSPACE}" \
+                                                      --container_image "${UPDATER_CONTAINER_IMAGE}" \
+                                                      --user "${UPDATER_USER}" \
+                                                      --host "${UPDATER_HOST}" \
+                                                      --output_dir /home/external_databases/amrfinder_plus
 
 }
 
