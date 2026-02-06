@@ -29,28 +29,11 @@
 ### No differenc in Updating/Downloading  if /home/external_databases/nextclade directory exist, everything inside it will be removed
 
 update_nextclade() {
-    if [ -d "/home/external_databases/nextclade" ]; then
-	rm -rf /home/external_databases/nextclade/*
-    else
-        mkdir /home/external_databases/nextclade
-    fi
-
-    db_path="/home/external_databases/nextclade"
-    # SARS
-    /opt/nextclade/bin/nextclade dataset get --name='sars-cov-2' --output-zip "${db_path}/sars-cov-2.zip"
-    # INFL
-    /opt/nextclade/bin/nextclade dataset get --name='flu_h1n1pdm_ha' --output-zip "${db_path}/H1N1_HA.zip"
-    /opt/nextclade/bin/nextclade dataset get --name='flu_h1n1pdm_na' --output-zip "${db_path}/H1N1_NA.zip"
-    /opt/nextclade/bin/nextclade dataset get --name='flu_h3n2_ha' --output-zip "${db_path}/H3N2_HA.zip"
-    /opt/nextclade/bin/nextclade dataset get --name='flu_h3n2_na' --output-zip "${db_path}/H3N2_NA.zip"
-    /opt/nextclade/bin/nextclade dataset get --name='flu_vic_ha' --output-zip "${db_path}/Victoria_HA.zip"
-    /opt/nextclade/bin/nextclade dataset get --name='flu_vic_na' --output-zip "${db_path}/Victoria_NA.zip"
-    /opt/nextclade/bin/nextclade dataset get --name='flu_yam_ha' --output-zip "${db_path}/Yamagata_HA.zip"
-    # RSV
-    /opt/nextclade/bin/nextclade dataset get --name='rsv_a' --output-zip "${db_path}/RSV_A.zip"
-    /opt/nextclade/bin/nextclade dataset get --name='rsv_b' --output-zip "${db_path}/RSV_B.zip"
-    cd 
-    
+    python3 -u /home/update/download_nextclade.py --workspace "${UPDATER_WORKSPACE}" \
+                                                  --container_image "${UPDATER_CONTAINER_IMAGE}" \
+                                                  --user "${UPDATER_USER}" \
+                                                  --host "${UPDATER_HOST}" \
+                                                  --output_dir /home/external_databases/nextclade
     return $?
 }
 
