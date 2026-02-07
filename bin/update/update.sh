@@ -97,11 +97,12 @@ update_amrfinder() {
 # Metaphlan
 ## Database has an update mechanism and dedicated script
 update_metaphlan() {
-        if [ ! -d "/home/external_databases/metaphlan" ]; then
-                 mkdir /home/external_databases/metaphlan
-        fi
 
-        /home/update/download_metaphlan.sh
+        python3 -u /home/update/download_metaphlan.py --workspace "${UPDATER_WORKSPACE}" \
+                                                      --container_image "${UPDATER_CONTAINER_IMAGE}" \
+                                                      --user "${UPDATER_USER}" \
+                                                      --host "${UPDATER_HOST}" \
+                                                      --output_dir /home/external_databases/metaphlan
 
 }
 

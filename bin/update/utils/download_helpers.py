@@ -2,7 +2,7 @@ import requests
 import time
 import logging
 from pathlib import Path
-from typing import Tuple
+from typing import Optional, Tuple
 import logging
 
 
@@ -16,6 +16,7 @@ def _download_file_with_retry(
     max_retries: int = 3,
     wait_seconds: int = 300,
     timeout_s: int = 60,
+    auth: Optional[Tuple[str, str]] = None,
 ) -> Tuple[bool, int]:
     """Download a file with retries. Returns (success, attempts_used)."""
 
@@ -28,7 +29,7 @@ def _download_file_with_retry(
             if output_path.exists():
                 output_path.unlink()
 
-            with requests.get(url, stream=True, timeout=timeout_s, headers=HEADERS) as response:
+            with requests.get(url, stream=True, timeout=timeout_s, headers=HEADERS, auth=auth) as response:
                 if response.status_code == 200:
                     logger.info("Downloading %s...", output_path.name)
                     with open(output_path, "wb") as f:

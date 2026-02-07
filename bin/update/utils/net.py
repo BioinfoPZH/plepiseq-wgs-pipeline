@@ -50,6 +50,7 @@ def _is_retryable_http_status(status_code: int) -> bool:
 
 def _check_connection(session: requests.Session,
                       url: str,
+                      auth: Optional[Tuple[str, str]] = None,
                       timeout_s: int = 10) -> Tuple[StatusType, str, Optional[int]]:
     """
     Function checks connection. By a default function asks for HEAD of the webpage, and as a fallback full body
@@ -57,7 +58,7 @@ def _check_connection(session: requests.Session,
     """
     # HEAD first
     try:
-        r = session.head(url, headers=HEADERS , timeout=timeout_s, allow_redirects=True)
+        r = session.head(url, headers=HEADERS, timeout=timeout_s, allow_redirects=True, auth=auth)
         if r.status_code < 400:
             return StatusType.PASSED, "Endpoint reachable", r.status_code
         if _is_retryable_http_status(r.status_code):
@@ -70,7 +71,7 @@ def _check_connection(session: requests.Session,
 
     # GET fallback
     try:
-        r = session.get(url, headers=HEADERS, timeout=timeout_s, allow_redirects=True)
+        r = session.get(url, headers=HEADERS, timeout=timeout_s, allow_redirects=True, auth=auth)
         if r.status_code < 400:
             return StatusType.PASSED, "Endpoint reachable", r.status_code
         if _is_retryable_http_status(r.status_code):
@@ -84,7 +85,8 @@ def check_url_available(
     url: str,
     retries: int = 3,
     interval: int = 30,
-    logger: Optional[logging.Logger] = None
+    logger: Optional[logging.Logger] = None,
+    auth: Optional[Tuple[str, str]] = None,
 ) -> dict[str, Any]:
     """
     Checks whether a remote URL is reachable. By default, 3 attempts are made with 30s interval between attempts. Each
@@ -104,7 +106,7 @@ def check_url_available(
     for attempt in range(1, retries + 1):
         if logger:
             logger.info(f"Attempt {attempt}/{retries}: Checking connection to {url}")
-        status, msg, exit_code = _check_connection(session, url, timeout_s=timeout_s)
+        status, msg, exit_code = _check_connection(session, url, auth=auth, timeout_s=timeout_s)
 
         # Success → return immediately
         if StatusType.PASSED == status:
