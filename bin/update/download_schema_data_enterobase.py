@@ -1,227 +1,677 @@
-import urllib.request
-from urllib.error import HTTPError
-import base64
+#!/usr/bin/env python3
+
+from __future__ import annotations
+
+import getpass
 import json
-import os
-import subprocess
+import socket
 import time
-from Bio import SeqIO
-import sys
-from multiprocessing import Pool
-import logging
-from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
 import click
-from Bio import SeqIO
-from glob import glob
+import requests
+from multiprocessing.dummy import Pool as ThreadPool
 
-# Here we define numbr of retries and expected files
-MAX_RETRIES = 3
-REQUIRED_FILES_CGMLST = {
-    "senterica": ["STMMW_17971.fasta.gz", "t1733.fasta.gz"],
-    "ecoli": ["b0784.fasta.gz", "NCTC12130_00627.fasta.gz"]
+from utils.blast_helpers import run_makeblastdb
+from utils.download_helpers import _download_file_with_retry
+from utils.generic_helpers import _execute_command, remove_old_workspace
+from utils.net import StatusType, check_url_available
+from utils.report import ALL_STEPS, SCHEMA_VERSION, ReportBuilder
+from utils.run_id import generate_run_id
+from utils.setup_logging import _setup_logging
+from utils.updates_helpers import file_md5sum
+from utils.validation import verify_expected_files, get_timestamp
+
+
+REQUIRED_SENTINELS_CGMLST: Dict[str, List[str]] = {
+    # a few stable loci used as sentinels for validation
+    "senterica": ["STMMW_17971", "t1733"],
+    "ecoli": ["b0784", "NCTC12130_00627"],
 }
 
-REQUIRED_FILES_MLST = {
-    "senterica": ["aroC.fasta.gz", "dnaN.fasta.gz", "purE.fasta.gz"],
-    "ecoli": ["adk.fasta.gz", "fumC.fasta.gz", "recA.fasta.gz"]
+REQUIRED_SENTINELS_MLST: Dict[str, List[str]] = {
+    "senterica": ["aroC", "dnaN", "purE"],
+    "ecoli": ["adk", "fumC", "recA"],
 }
 
-# ---- Helper Functions ----
 
-def concat_fastas(src_dir: str, out_path: str) -> None:
-    """Concatenate all FASTA files in src_dir into out_path."""
-    with open(out_path, "wb") as outfile:
-        for fasta_file in sorted(glob(os.path.join(src_dir, "*.fasta"))):
-            with open(fasta_file, "rb") as infile:
-                outfile.write(infile.read())
+def _basic_auth_tuple(api_token: str) -> Tuple[str, str]:
+    # EnteroBase API accepts token via Basic auth (token as username, blank password)
+    return api_token, ""
 
-def __create_request(request_str, api_token):
-    base64string = base64.b64encode(f'{api_token}: '.encode('utf-8'))
-    headers = {"Authorization": f"Basic {base64string.decode()}"}
-    return urllib.request.Request(request_str, None, headers)
 
-def execute_command(command: str):
+def _read_first_line(path: Path) -> str:
+    with path.open("rt", encoding="utf-8", errors="replace") as f:
+        return (f.readline() or "").rstrip("\n")
+
+
+def _write_profiles_local_stub(*, output_dir: Path, logger) -> None:
     """
-    generic function to execute a bash command
+    Ensure `local/profiles_local.list` exists with the header line from `profiles.list`.
     """
-    # logging.info(f"Executing command: {command}")
-    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stdout, stderr = process.communicate()
-    if stdout:
-        logging.debug(stdout.decode())
-    if stderr:
-        logging.debug(stderr.decode())
-    return process.returncode == 0
+    local_dir = output_dir / "local"
+    local_dir.mkdir(parents=True, exist_ok=True)
+    stub_path = local_dir / "profiles_local.list"
+    if stub_path.exists():
+        return
+    header = _read_first_line(output_dir / "profiles.list")
+    stub_path.write_text(header + "\n", encoding="utf-8")
+    logger.info("Created local profiles stub: %s", stub_path)
 
-def run_blast(lista_loci, start, end, output_dir):
+
+def _concat_fastas_in_dir(*, src_dir: Path, out_path: Path) -> None:
     """
-    run blast
+    Concatenate all `*.fasta` files in src_dir (sorted) into out_path.
     """
-    for locus in lista_loci[start:end]:
-        execute_command(f"gunzip {os.path.join(output_dir, locus)}.fasta.gz")
-        execute_command(f"makeblastdb -in {os.path.join(output_dir, locus)}.fasta -dbtype nucl")
-    return True
+    fasta_files = sorted(p for p in src_dir.glob("*.fasta") if p.is_file() and p.name != out_path.name)
+    with out_path.open("wb") as out:
+        for p in fasta_files:
+            out.write(p.read_bytes())
 
-def is_data_complete(database: str, output_dir: str, scheme_name:str):
+
+def _download_json_with_retry(
+    *,
+    url: str,
+    output_path: Path,
+    logger,
+    auth: Optional[Tuple[str, str]] = None,
+    max_retries: int = 3,
+    wait_seconds: int = 30,
+    timeout_s: int = 60,
+) -> Tuple[bool, int, Optional[Dict[str, Any]]]:
     """
-    Check if output directory contains relevant files
+    Download JSON from a URL with retries. Returns (ok, attempts_used, parsed_json).
     """
-    if not os.path.exists(os.path.join(output_dir, "profiles.list")):
-        return False
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    last_err: Optional[str] = None
 
-    # Check expected files given organism and schema type
-    if scheme_name in ["cgMLST_v2", "cgMLST"]:
-        required = REQUIRED_FILES_CGMLST.get(database, [])
-    elif scheme_name == "MLST_Achtman":
-        required = REQUIRED_FILES_MLST.get(database, [])
+    for attempt in range(1, max_retries + 1):
+        try:
+            if output_path.exists():
+                output_path.unlink()
+            r = requests.get(url, timeout=timeout_s, auth=auth)
+            if r.status_code != 200:
+                last_err = f"HTTP {r.status_code}"
+                raise RuntimeError(last_err)
+            parsed = r.json()
+            output_path.write_text(json.dumps(parsed, indent=2) + "\n", encoding="utf-8")
+            return True, attempt, parsed
+        except Exception as e:
+            last_err = str(e)
+            logger.warning("Attempt %d/%d failed for JSON %s: %s", attempt, max_retries, url, last_err)
+            if attempt < max_retries:
+                time.sleep(wait_seconds)
 
-    for file in required:
-        if not os.path.exists(os.path.join(output_dir, file)):
-            return False
-    return True
+    return False, max_retries, None
 
-def get_feader(file_path):
-    """
-    Simple function to extract allele number from headears int the fasta file.
-    :return: dict, only one key - allele name, value list of ints (allel versions)
-    """
-    dictionary = {}
-    allele_name=os.path.basename(file_path).replace('.fasta','')
-    dictionary[allele_name] = []
-    for seq_record in SeqIO.parse(file_path, "fasta"):
-        dictionary[allele_name].append(seq_record.id.rsplit('_')[1])
 
-    return dictionary
+def _build_expected_files(database: str, scheme_name: str) -> List[str]:
+    expected: List[str] = ["profiles.list", "local/profiles_local.list"]
 
-# ---- Main Execution ----
+    if scheme_name in ("cgMLST_v2", "cgMLST"):
+        sent = REQUIRED_SENTINELS_CGMLST.get(database, [])
+    else:
+        sent = REQUIRED_SENTINELS_MLST.get(database, [])
+
+    for locus in sent:
+        expected.append(f"{locus}.fasta")
+        # makeblastdb nucl outputs (we validate at least one index artifact)
+        expected.append(f"{locus}.fasta.nsq")
+
+    if scheme_name == "MLST_Achtman":
+        expected.append("all_allels.fasta")
+
+    return expected
+
+
 @click.command()
-@click.option('-d', '--database', help='[REQUIRED] Genus-specific name of the database in Enterobase ',
-              type=click.Choice(['senterica', 'ecoli']), required=True)
-@click.option('-s', '--scheme_name', help='[REQUIRED] Name of the cgMLST scheme in Enterobase',
-              type=click.Choice(['cgMLST_v2', 'cgMLST', 'MLST_Achtman']), required=True)
-@click.option('-r', '--scheme_dir', help='[REQUIRED] Schema directory in EnteroBase',
-              type=click.Choice(['Salmonella.cgMLSTv2', 'Escherichia.cgMLSTv1', 'Escherichia.Achtman7GeneMLST', 'Salmonella.Achtman7GeneMLST']), required=True)
-@click.option('-c', '--cpus', default=4, show_default=True, help='Number of CPUs to use for BLAST indexing')
-@click.option('-t', '--api_token_file',
-              default='/home/update/enterobase_api.txt', show_default=True,
-              type=click.Path(), help='Path to EnteroBase API token file')
-@click.option('-o', '--output_dir', help='[REQUIRED] output directory', required=True, type=click.Path())
-def main(database, scheme_name, scheme_dir, cpus, api_token_file, output_dir):
-    os.makedirs(output_dir, exist_ok=True)
+@click.option("--workspace", type=str, default=None, help="Workspace path used in report metadata.")
+@click.option("--run_id", type=str, default=None, help="Unique run ID (defaults to generated).")
+@click.option("--container_image", type=str, default="unknown", help="Container image name (report metadata).")
+@click.option("--report_file", type=str, default=None, help="Report JSON file name (defaults to {run_id}.json).")
+@click.option("--log_file", type=str, default="log.log", help="Log file name.")
+@click.option("--user", type=str, default=None, help="User name (report metadata).")
+@click.option("--host", type=str, default=None, help="Host name (report metadata).")
+@click.option(
+    "-d",
+    "--database",
+    help="[REQUIRED] Genus-specific name of the database in EnteroBase",
+    type=click.Choice(["senterica", "ecoli"]),
+    required=True,
+)
+@click.option(
+    "-s",
+    "--scheme_name",
+    help="[REQUIRED] Name of the scheme in EnteroBase",
+    type=click.Choice(["cgMLST_v2", "cgMLST", "MLST_Achtman"]),
+    required=True,
+)
+@click.option(
+    "-r",
+    "--scheme_dir",
+    help="[REQUIRED] Scheme directory in EnteroBase",
+    type=click.Choice(
+        ["Salmonella.cgMLSTv2", "Escherichia.cgMLSTv1", "Escherichia.Achtman7GeneMLST", "Salmonella.Achtman7GeneMLST"]
+    ),
+    required=True,
+)
+@click.option("-c", "--cpus", default=4, show_default=True, help="Number of CPUs to use for BLAST indexing.")
+@click.option(
+    "-t",
+    "--api_token_file",
+    default="/home/update/enterobase_api.txt",
+    show_default=True,
+    type=click.Path(),
+    help="Path to EnteroBase API token file.",
+)
+@click.option("-o", "--output_dir", help="[REQUIRED] Output directory.", required=True, type=click.Path())
+def main(
+    workspace: Optional[str],
+    run_id: Optional[str],
+    container_image: str,
+    report_file: Optional[str],
+    log_file: str,
+    user: Optional[str],
+    host: Optional[str],
+    database: str,
+    scheme_name: str,
+    scheme_dir: str,
+    cpus: int,
+    api_token_file: str,
+    output_dir: str,
+) -> None:
 
-    # Setup logging to file in output directory
-    log_file_path = os.path.join(output_dir, "log.log")
-    logging.basicConfig(
-        level=logging.INFO,
-        format='[%(asctime)s] %(levelname)s: %(message)s',
-        handlers=[
-            logging.FileHandler(log_file_path, mode = 'w'),
-            logging.StreamHandler(sys.stdout)
-        ]
+    out_dir = Path(output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    if not run_id:
+        run_id = generate_run_id("enterobase_schema_data")
+
+    # Logging
+    log_dir = out_dir / "logs"
+    if run_id not in Path(log_file).stem:
+        log_file = Path(log_file).stem + f"_{run_id}" + Path(log_file).suffix
+    logger = _setup_logging(output_dir=log_dir, filename=log_file)
+
+    # Report setup
+    if report_file is None or run_id not in report_file:
+        report_file = f"{run_id}.json"
+
+    report_dir = out_dir / "reports"
+    report_dir.mkdir(parents=True, exist_ok=True)
+
+    execution_context = {
+        "workspace": f"{workspace}/enterobase_schema" if workspace else str(out_dir),
+        "user": user or getpass.getuser(),
+        "host": host or socket.gethostname(),
+        "container_image": container_image,
+    }
+
+    database_identity = {"name": "enterobase_schema_data", "category": "typing"}
+
+    source = {
+        "source_type": "https",
+        "reference": "https://enterobase.warwick.ac.uk",
+        "expected_raw_files": ["loci.json", "profiles.list.gz"],
+        "expected_processed_files": _build_expected_files(database, scheme_name),
+    }
+
+    remaining_steps = list(ALL_STEPS)
+
+    rb = ReportBuilder.start(
+        schema_version=SCHEMA_VERSION,
+        database=database_identity,
+        execution_context=execution_context,
+        run_id=run_id,
+        source=source,
+        log_file=f"{execution_context['workspace']}/logs/{log_file}",
     )
 
-    if scheme_name == "MLST_Achtman":
-        all_allels_path = os.path.join(output_dir, "all_allels.fasta")
-        achman_ref_path = os.path.join(output_dir, "MLST_Achtman_ref.fasta")
+    def skip_remaining_steps(steps: List[str], reason: str) -> None:
+        for s in steps:
+            rb.add_skipped(s, reason)
 
-        execute_command(f'rm {all_allels_path} || true')
-        execute_command(f'rm {achman_ref_path} || true')
+    # Read API token
+    token_path = Path(api_token_file)
+    api_token = token_path.read_text(encoding="utf-8").splitlines()[0].strip()
+    auth = _basic_auth_tuple(api_token)
 
+    api_url = f"https://enterobase.warwick.ac.uk/api/v2.0/{database}/{scheme_name}/loci?limit=10000&scheme={scheme_name}&offset=0"
+    scheme_base_url = f"https://enterobase.warwick.ac.uk/schemes/{scheme_dir}/"
+    profiles_url = f"{scheme_base_url.rstrip('/')}/profiles.list.gz"
 
-    start_time = datetime.now()
-    logging.info(f"Script started at {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
+    loci_json_path = out_dir / "loci.json"
+    profiles_gz_path = out_dir / "profiles.list.gz"
+    manifest_path = out_dir / "enterobase_md5.json"
 
-    with open(api_token_file) as f:
-        api_token = f.readline().strip()
+    # -----------------------------
+    # 1) PREFLIGHT_CONNECTIVITY
+    # -----------------------------
+    pre = check_url_available("https://www.google.com", retries=3, interval=30, logger=logger)
+    rb.add_named_milestone("PREFLIGHT_CONNECTIVITY", pre)
+    remaining_steps.remove("PREFLIGHT_CONNECTIVITY")
+    if pre["status"] != StatusType.PASSED.value:
+        skip_remaining_steps(remaining_steps, "Skipped due to failed preflight connectivity.")
+        rb.fail(code="NO_INTERNET", message=pre.get("message", ""), retry_recommended=True)
+        rb.finalize("FAIL")
+        rb.write(str(report_dir / report_file))
+        return
 
-    for attempt in range(1, MAX_RETRIES + 1):
+    # -----------------------------
+    # 2) DATABASE_AVAILABILITY
+    # -----------------------------
+    started_at = get_timestamp()
+    api_av = check_url_available(api_url, retries=3, interval=30, logger=logger, auth=auth)
+    scheme_av = check_url_available(scheme_base_url, retries=3, interval=30, logger=logger)
+
+    db_avail = {
+        "status": StatusType.PASSED.value if (api_av["status"] == StatusType.PASSED.value and scheme_av["status"] == StatusType.PASSED.value) else StatusType.FAILED.value,
+        "message": "All required endpoints reachable" if (api_av["status"] == StatusType.PASSED.value and scheme_av["status"] == StatusType.PASSED.value) else "One or more endpoints unreachable",
+        "started_at": started_at,
+        "finished_at": get_timestamp(),
+        "attempts": max(int(api_av.get("attempts", 1) or 1), int(scheme_av.get("attempts", 1) or 1)),
+        "retryable": True,
+        "metrics": {
+            "checks": {
+                api_url: {"status": api_av.get("status"), "message": api_av.get("message"), "metrics": api_av.get("metrics", {})},
+                scheme_base_url: {"status": scheme_av.get("status"), "message": scheme_av.get("message"), "metrics": scheme_av.get("metrics", {})},
+            }
+        },
+    }
+
+    rb.add_named_milestone("DATABASE_AVAILABILITY", db_avail)
+    remaining_steps.remove("DATABASE_AVAILABILITY")
+
+    if db_avail["status"] != StatusType.PASSED.value:
+        skip_remaining_steps(remaining_steps, "Skipped due to failed database availability check.")
+        rb.fail(code="DATABASE_UNAVAILABLE", message=db_avail.get("message", ""), retry_recommended=True)
+        rb.finalize("FAIL")
+        rb.write(str(report_dir / report_file))
+        return
+
+    # -----------------------------
+    # 3) REMOTE_FILES_DOWNLOAD_STATUS (metadata artifacts)
+    # -----------------------------
+    started_at = get_timestamp()
+    ok_json, attempts_json, parsed_json = _download_json_with_retry(
+        url=api_url,
+        output_path=loci_json_path,
+        logger=logger,
+        auth=auth,
+        max_retries=3,
+        wait_seconds=30,
+        timeout_s=60,
+    )
+
+    ok_profiles, attempts_profiles = _download_file_with_retry(
+        url=profiles_url,
+        output_path=profiles_gz_path,
+        logger=logger,
+        max_retries=3,
+        wait_seconds=60,
+        timeout_s=60,
+    )
+
+    finished_at = get_timestamp()
+    if not ok_json or not ok_profiles:
+        rb.add_named_milestone(
+            "REMOTE_FILES_DOWNLOAD_STATUS",
+            {
+                "status": StatusType.FAILED.value,
+                "message": "Failed to download required metadata artifacts (loci.json and/or profiles.list.gz).",
+                "started_at": started_at,
+                "finished_at": finished_at,
+                "attempts": max(attempts_json, attempts_profiles),
+                "retryable": True,
+                "metrics": {
+                    "loci_json_ok": ok_json,
+                    "profiles_gz_ok": ok_profiles,
+                    "loci_json_path": str(loci_json_path),
+                    "profiles_gz_path": str(profiles_gz_path),
+                },
+            },
+        )
+        remaining_steps.remove("REMOTE_FILES_DOWNLOAD_STATUS")
+        skip_remaining_steps(remaining_steps, "Skipped: failed to download metadata artifacts.")
+        rb.finalize("FAIL")
+        rb.write(str(report_dir / report_file))
+        return
+
+    loci_count = 0
+    try:
+        loci_count = len((parsed_json or {}).get("loci", []))
+    except Exception:
+        loci_count = 0
+
+    rb.add_named_milestone(
+        "REMOTE_FILES_DOWNLOAD_STATUS",
+        {
+            "status": StatusType.PASSED.value,
+            "message": "Metadata artifacts downloaded successfully.",
+            "started_at": started_at,
+            "finished_at": finished_at,
+            "attempts": max(attempts_json, attempts_profiles),
+            "retryable": True,
+            "metrics": {
+                "loci_count": loci_count,
+                "loci_json_bytes": int(loci_json_path.stat().st_size) if loci_json_path.exists() else 0,
+                "profiles_gz_bytes": int(profiles_gz_path.stat().st_size) if profiles_gz_path.exists() else 0,
+            },
+        },
+    )
+    remaining_steps.remove("REMOTE_FILES_DOWNLOAD_STATUS")
+
+    # -----------------------------
+    # 4) UPDATE_STATUS (checksum manifest)
+    # -----------------------------
+    started_at = get_timestamp()
+
+    old_md5: Dict[str, str] = {}
+    first_build = False
+    if manifest_path.exists():
         try:
-            logging.info(f"Download attempt {attempt}...")
-            lista_loci = []
+            old_md5 = json.loads(manifest_path.read_text(encoding="utf-8") or "{}")
+            if not isinstance(old_md5, dict):
+                old_md5 = {}
+        except Exception:
+            old_md5 = {}
+    else:
+        first_build = True
 
-            address = f'https://enterobase.warwick.ac.uk/api/v2.0/{database}/{scheme_name}/loci?limit=10000&scheme={scheme_name}&offset=0'
+    new_md5: Dict[str, str] = {
+        "loci.json": file_md5sum(str(loci_json_path)),
+        "profiles.list.gz": file_md5sum(str(profiles_gz_path)),
+    }
 
-            response = urllib.request.urlopen(__create_request(address, api_token))
-            data = json.load(response)
+    changed = [k for k, v in new_md5.items() if old_md5.get(k, "") != v]
+    expected_files = _build_expected_files(database, scheme_name)
+    required_present = all((out_dir / rel).exists() for rel in expected_files)
 
-            logging.info("Downloading loci files...")
-            for i, locus in enumerate(data['loci']):
-                if i % 100 == 0:
-                    # In some cases API doesn't like to be queried to many times
-                    time.sleep(2)
-                locus_link = f"https://enterobase.warwick.ac.uk//schemes/{scheme_dir}/{locus['locus']}.fasta.gz"
-                response_locus = urllib.request.urlopen(locus_link)
+    update_required = (not manifest_path.exists()) or bool(changed) or (not required_present)
 
-                for f in os.listdir(output_dir):
-                    if locus['locus'] in f:
-                        os.remove(os.path.join(output_dir, f))
-                with open(os.path.join(output_dir, f"{locus['locus']}.fasta.gz"), 'wb') as f_out:
-                    f_out.write(response_locus.read())
-                lista_loci.append(f"{locus['locus']}")
+    if update_required:
+        msg = "No previous manifest: treating as first build." if first_build else ("Update required: checksum change detected." if changed else "Update required: expected files missing locally.")
+        remove_old_workspace(out_dir, keep=("logs", "reports", manifest_path.name, loci_json_path.name, profiles_gz_path.name), logger=logger)
+        # Persist new baseline immediately (same approach as VFDB)
+        manifest_path.write_text(json.dumps(new_md5, indent=2) + "\n", encoding="utf-8")
 
-            logging.info("Downloading profile file...")
-            for f in os.listdir(output_dir):
-                if 'profiles.list' in f:
-                    os.remove(os.path.join(output_dir, f))
+        upd_milestone = {
+            "status": StatusType.PASSED.value,
+            "message": msg,
+            "started_at": started_at,
+            "finished_at": get_timestamp(),
+            "attempts": 1,
+            "retryable": False,
+            "metrics": {"changed_files": changed, "required_files_present": required_present, "update_required": True},
+        }
+        update_decision = {
+            "mode": "checksum_manifest",
+            "result": "updated",
+            "message": msg,
+            "first_build": first_build,
+            "checksums_before": [{"file_name": k, "checksum": v} for k, v in old_md5.items()],
+            "checksums_after": [{"file_name": k, "checksum": v} for k, v in new_md5.items()],
+        }
+    else:
+        msg = "No update required: checksums match previous manifest and expected files are present."
+        upd_milestone = {
+            "status": StatusType.PASSED.value,
+            "message": msg,
+            "started_at": started_at,
+            "finished_at": get_timestamp(),
+            "attempts": 1,
+            "retryable": False,
+            "metrics": {"changed_files": [], "required_files_present": True, "update_required": False},
+        }
+        update_decision = {
+            "mode": "checksum_manifest",
+            "result": "latest_version_present",
+            "message": msg,
+            "first_build": first_build,
+            "checksums_before": [{"file_name": k, "checksum": v} for k, v in old_md5.items()],
+            "checksums_after": [{"file_name": k, "checksum": v} for k, v in new_md5.items()],
+        }
 
-            profile_link = f"https://enterobase.warwick.ac.uk//schemes/{scheme_dir}/profiles.list.gz"
-            response_profile = urllib.request.urlopen(profile_link)
-            with open(os.path.join(output_dir, "profiles.list.gz"), 'wb') as f_out:
-                f_out.write(response_profile.read())
-            execute_command(f"gunzip {os.path.join(output_dir, 'profiles.list.gz')}")
+    rb.add_named_milestone("UPDATE_STATUS", upd_milestone)
+    remaining_steps.remove("UPDATE_STATUS")
+    rb.set_update_decision(**update_decision)
 
-            if is_data_complete(database, output_dir, scheme_name):
-                logging.info("All required files downloaded successfully.")
-                break
-            else:
-                raise FileNotFoundError("Some required files are missing after download attempt.")
+    if upd_milestone["status"] != StatusType.PASSED.value:
+        skip_remaining_steps(remaining_steps, "Skipped: failed update decision.")
+        rb.fail(code="UPDATE_DECISION_FAILED", message=upd_milestone.get("message", ""), retry_recommended=False)
+        rb.finalize("FAIL")
+        rb.write(str(report_dir / report_file))
+        return
 
-        except Exception as e:
-            logging.warning(f"Attempt {attempt} failed: {str(e)}")
-            if attempt < MAX_RETRIES:
-                time.sleep(30)
-            else:
-                logging.error("Failed to download all required files after 3 attempts.")
-                sys.exit(1)
+    if not update_required:
+        skip_remaining_steps(remaining_steps, "Skipped: latest version already present.")
+        rb.finalize("SKIPPED")
+        rb.write(str(report_dir / report_file))
+        return
 
-    logging.info("Starting indexing loci for BLAST...")
+    # -----------------------------
+    # 5) PROCESSING_STATUS
+    # -----------------------------
+    started_at = get_timestamp()
 
-    # Turn off multiprocessing for 7-gene MLST
+    # parse loci from saved JSON (use parsed_json if available)
+    if parsed_json is None:
+        parsed_json = json.loads(loci_json_path.read_text(encoding="utf-8"))
+    loci_entries = (parsed_json or {}).get("loci", [])
+    loci: List[str] = []
+    for item in loci_entries:
+        if isinstance(item, dict) and item.get("locus"):
+            loci.append(str(item["locus"]))
+
+    if not loci:
+        proc = {
+            "status": StatusType.FAILED.value,
+            "message": "No loci found in loci.json; cannot proceed.",
+            "started_at": started_at,
+            "finished_at": get_timestamp(),
+            "attempts": 1,
+            "retryable": False,
+            "metrics": {"loci_json": str(loci_json_path)},
+        }
+        rb.add_named_milestone("PROCESSING_STATUS", proc)
+        remaining_steps.remove("PROCESSING_STATUS")
+        skip_remaining_steps(remaining_steps, "Skipped: processing failed.")
+        rb.fail(code="PROCESSING_FAILED", message=proc["message"], retry_recommended=False)
+        rb.finalize("FAIL")
+        rb.write(str(report_dir / report_file))
+        return
+
+    # Download loci files (gz)
+    downloaded = 0
+    failed: List[str] = []
+    attempts_used_max = 1
+
+    for i, locus in enumerate(loci):
+        if i > 0 and i % 100 == 0:
+            # throttle to be gentle on EnteroBase
+            time.sleep(2)
+        url = f"{scheme_base_url.rstrip('/')}/{locus}.fasta.gz"
+        dest = out_dir / f"{locus}.fasta.gz"
+        ok, attempts_used = _download_file_with_retry(
+            url=url,
+            output_path=dest,
+            logger=logger,
+            max_retries=3,
+            wait_seconds=60,
+            timeout_s=120,
+        )
+        attempts_used_max = max(attempts_used_max, attempts_used)
+        if not ok:
+            failed.append(locus)
+            break
+        downloaded += 1
+
+    if failed:
+        proc = {
+            "status": StatusType.FAILED.value,
+            "message": f"Failed to download locus FASTA.gz for: {failed[0]}",
+            "started_at": started_at,
+            "finished_at": get_timestamp(),
+            "attempts": attempts_used_max,
+            "retryable": True,
+            "metrics": {"downloaded": downloaded, "failed_locus": failed[0], "loci_total": len(loci)},
+        }
+        rb.add_named_milestone("PROCESSING_STATUS", proc)
+        remaining_steps.remove("PROCESSING_STATUS")
+        skip_remaining_steps(remaining_steps, "Skipped: processing failed.")
+        rb.fail(code="REMOTE_FILES_DOWNLOAD_FAILED", message=proc["message"], retry_recommended=True)
+        rb.finalize("FAIL")
+        rb.write(str(report_dir / report_file))
+        return
+
+    # Decompress profiles + loci gz
+    ok_profiles_gunzip = _execute_command(f"gunzip -f {profiles_gz_path}", logger=logger)
+    if not ok_profiles_gunzip:
+        proc = {
+            "status": StatusType.FAILED.value,
+            "message": "Failed to gunzip profiles.list.gz",
+            "started_at": started_at,
+            "finished_at": get_timestamp(),
+            "attempts": 1,
+            "retryable": False,
+            "metrics": {"file": str(profiles_gz_path)},
+        }
+        rb.add_named_milestone("PROCESSING_STATUS", proc)
+        remaining_steps.remove("PROCESSING_STATUS")
+        skip_remaining_steps(remaining_steps, "Skipped: processing failed.")
+        rb.fail(code="PROCESSING_FAILED", message=proc["message"], retry_recommended=False)
+        rb.finalize("FAIL")
+        rb.write(str(report_dir / report_file))
+        return
+
+    for locus in loci:
+        gz = out_dir / f"{locus}.fasta.gz"
+        if not gz.exists():
+            continue
+        ok = _execute_command(f"gunzip -f {gz}", logger=logger)
+        if not ok:
+            proc = {
+                "status": StatusType.FAILED.value,
+                "message": f"Failed to gunzip {gz.name}",
+                "started_at": started_at,
+                "finished_at": get_timestamp(),
+                "attempts": 1,
+                "retryable": False,
+                "metrics": {"file": str(gz)},
+            }
+            rb.add_named_milestone("PROCESSING_STATUS", proc)
+            remaining_steps.remove("PROCESSING_STATUS")
+            skip_remaining_steps(remaining_steps, "Skipped: processing failed.")
+            rb.fail(code="PROCESSING_FAILED", message=proc["message"], retry_recommended=False)
+            rb.finalize("FAIL")
+            rb.write(str(report_dir / report_file))
+            return
+
+    # BLAST indexing
+    fasta_files = [str(out_dir / f"{locus}.fasta") for locus in loci if (out_dir / f"{locus}.fasta").exists()]
+    if not fasta_files:
+        proc = {
+            "status": StatusType.FAILED.value,
+            "message": "No loci FASTA files found after decompression.",
+            "started_at": started_at,
+            "finished_at": get_timestamp(),
+            "attempts": 1,
+            "retryable": False,
+            "metrics": {"loci_total": len(loci)},
+        }
+        rb.add_named_milestone("PROCESSING_STATUS", proc)
+        remaining_steps.remove("PROCESSING_STATUS")
+        skip_remaining_steps(remaining_steps, "Skipped: processing failed.")
+        rb.fail(code="PROCESSING_FAILED", message=proc["message"], retry_recommended=False)
+        rb.finalize("FAIL")
+        rb.write(str(report_dir / report_file))
+        return
+
+    # 7-gene MLST: no need for heavy parallelism, but keep it safe
+    threads = max(1, int(cpus or 1))
     if scheme_name == "MLST_Achtman":
-        cpus = 1
+        threads = 1
 
-    pool = Pool(cpus)
-    lista_indeksow = []
-    step = len(lista_loci) // cpus
-    start = 0
+    def _index_one(path_str: str) -> Tuple[str, bool]:
+        ok, _m = run_makeblastdb(Path(path_str), dbtype="nucl", logger=logger)
+        return path_str, ok
 
-    for i in range(cpus):
-        end = start + step
-        if i == (cpus - 1) or end > len(lista_loci):
-            end = len(lista_loci)
-        lista_indeksow.append((start, end))
-        start = end
+    with ThreadPool(threads) as pool:
+        results = pool.map(_index_one, fasta_files)
 
-    jobs = [pool.apply_async(run_blast, (lista_loci, s, e, output_dir)) for s, e in lista_indeksow]
-    pool.close()
-    pool.join()
+    failed_index = [p for (p, ok) in results if not ok]
+    if failed_index:
+        proc = {
+            "status": StatusType.FAILED.value,
+            "message": f"makeblastdb failed for {len(failed_index)} file(s).",
+            "started_at": started_at,
+            "finished_at": get_timestamp(),
+            "attempts": 1,
+            "retryable": False,
+            "metrics": {"failed": failed_index[:20], "failed_truncated": len(failed_index) > 20},
+        }
+        rb.add_named_milestone("PROCESSING_STATUS", proc)
+        remaining_steps.remove("PROCESSING_STATUS")
+        skip_remaining_steps(remaining_steps, "Skipped: processing failed.")
+        rb.fail(code="PROCESSING_FAILED", message=proc["message"], retry_recommended=False)
+        rb.finalize("FAIL")
+        rb.write(str(report_dir / report_file))
+        return
 
     if scheme_name == "MLST_Achtman":
-        logging.info(f"Merging fastas to all_allels.fasta in {output_dir}...")
-        all_allels_path = os.path.join(output_dir, "all_allels.fasta") 
-        concat_fastas(output_dir, all_allels_path)
+        all_allels_path = out_dir / "all_allels.fasta"
+        logger.info("Merging loci fastas to %s ...", all_allels_path)
+        _concat_fastas_in_dir(src_dir=out_dir, out_path=all_allels_path)
 
-    # ---- Final steps ----
-    # In case we run our script on an empty directory we must set up files with a local 'database'
-    local_dir = os.path.join(output_dir, 'local')
-    os.makedirs(local_dir, exist_ok=True)
+    proc = {
+        "status": StatusType.PASSED.value,
+        "message": "Downloaded loci, decompressed files, and created BLAST indices.",
+        "started_at": started_at,
+        "finished_at": get_timestamp(),
+        "attempts": 1,
+        "retryable": False,
+        "metrics": {"loci_total": len(loci), "downloaded": downloaded, "indexed": len(fasta_files), "threads": threads},
+    }
+    rb.add_named_milestone("PROCESSING_STATUS", proc)
+    remaining_steps.remove("PROCESSING_STATUS")
 
-    if not os.path.exists(os.path.join(local_dir, 'profiles_local.list')):
-        execute_command(f"head -1 {os.path.join(output_dir, 'profiles.list')} >> {os.path.join(local_dir, 'profiles_local.list')}")
+    # -----------------------------
+    # 6) FINAL_STATUS
+    # -----------------------------
+    # Ensure profiles.list exists and create local stub
+    try:
+        _write_profiles_local_stub(output_dir=out_dir, logger=logger)
+    except Exception as e:
+        final_payload = {
+            "status": StatusType.FAILED.value,
+            "message": f"Failed to create local profiles stub: {e}",
+            "started_at": get_timestamp(),
+            "finished_at": get_timestamp(),
+            "attempts": 1,
+            "retryable": False,
+            "metrics": {},
+        }
+        rb.add_named_milestone("FINAL_STATUS", final_payload)
+        remaining_steps.remove("FINAL_STATUS")
+        rb.fail(code="FINAL_STATUS_FAILED", message=final_payload["message"], retry_recommended=False)
+        rb.finalize("FAIL")
+        rb.write(str(report_dir / report_file))
+        return
 
-    end_time = datetime.now()
-    logging.info(f"Script finished at {end_time.strftime('%Y-%m-%d %H:%M:%S')}")
-    logging.info(f"Total runtime: {str(end_time - start_time).split('.')[0]}" )
+    final = verify_expected_files(base_dir=out_dir, expected_files=_build_expected_files(database, scheme_name))
+    rb.add_named_milestone("FINAL_STATUS", final)
+    remaining_steps.remove("FINAL_STATUS")
 
-if __name__ == '__main__':
+    if final["status"] != StatusType.PASSED.value:
+        rb.fail(code="FINAL_STATUS_FAILED", message=final.get("message", ""), retry_recommended=False)
+        rb.finalize("FAIL")
+        rb.write(str(report_dir / report_file))
+        return
+
+    rb.finalize("PASS")
+    rb.write(str(report_dir / report_file))
+
+
+if __name__ == "__main__":
     main()

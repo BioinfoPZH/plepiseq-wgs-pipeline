@@ -19,6 +19,12 @@
 # This script should never be run directly but using a wrapper script update_external_databases.sh
 # All values passed to this script are evaluated by update_external_databases.sh
 
+# Updater execution context (provided by update_external_databases.sh, but keep safe defaults)
+UPDATER_WORKSPACE="${UPDATER_WORKSPACE:-/home/external_databases}"
+UPDATER_CONTAINER_IMAGE="${UPDATER_CONTAINER_IMAGE:-unknown}"
+UPDATER_USER="${UPDATER_USER:-$(id -un)}"
+UPDATER_HOST="${UPDATER_HOST:-$(hostname)}"
+
 
 #############################################
 # Function to update the nextclade database #
@@ -201,11 +207,8 @@ update_mlst() {
 		update_mlst_campylo "/home/external_databases/mlst/Campylobacter/jejuni" "${SPEC}" "MLST"
 
 	elif [ ${genus} == "Salmonella" ]; then
-		if [ -d "/home/external_databases/mlst/Salmonella" ]; then
-                        rm -f /home/external_databases/mlst/Salmonella/*
-                else
-                        mkdir -p /home/external_databases/mlst/Salmonella
-                fi
+		# NOTE: do not wipe this directory – EnteroBase schema downloader uses a local checksum manifest
+		# (enterobase_md5.json) to decide whether an update is required.
 
 		DATABASE="senterica"
                 scheme_name="MLST_Achtman"
@@ -214,15 +217,16 @@ update_mlst() {
                                                                            --scheme_name "${scheme_name}" \
                                                                            --scheme_dir "${scheme_dir}" \
                                                                            --cpus ${cpus} \
-                                                                           --output_dir /home/external_databases/mlst/Salmonella
+                                                                           --output_dir /home/external_databases/mlst/Salmonella \
+                                                                           --workspace "${UPDATER_WORKSPACE}" \
+                                                                           --container_image "${UPDATER_CONTAINER_IMAGE}" \
+                                                                           --user "${UPDATER_USER}" \
+                                                                           --host "${UPDATER_HOST}"
 
 
 	elif [ ${genus} == "Escherichia" ]; then
-		if [ -d "/home/external_databases/mlst/Escherichia" ]; then
-                        rm -f /home/external_databases/mlst/Escherichia/*
-                else
-                        mkdir -p /home/external_databases/mlst/Escherichia
-		fi
+		# NOTE: do not wipe this directory – EnteroBase schema downloader uses a local checksum manifest
+		# (enterobase_md5.json) to decide whether an update is required.
 		DATABASE="ecoli"
                 scheme_name="MLST_Achtman"
                 scheme_dir="Escherichia.Achtman7GeneMLST"
@@ -230,14 +234,14 @@ update_mlst() {
                                                                            --scheme_name "${scheme_name}" \
                                                                            --scheme_dir "${scheme_dir}" \
                                                                            --cpus ${cpus} \
-                                                                           --output_dir /home/external_databases/mlst/Escherichia
+                                                                           --output_dir /home/external_databases/mlst/Escherichia \
+                                                                           --workspace "${UPDATER_WORKSPACE}" \
+                                                                           --container_image "${UPDATER_CONTAINER_IMAGE}" \
+                                                                           --user "${UPDATER_USER}" \
+                                                                           --host "${UPDATER_HOST}"
 
 	elif [ ${genus} == "all" ]; then
-                if [ -d "/home/external_databases/mlst/Salmonella" ]; then
-                        rm -f /home/external_databases/mlst/Salmonella/*
-                else
-                        mkdir -p /home/external_databases/mlst/Salmonella
-                fi
+                # NOTE: do not wipe – keep checksum manifest for incremental updates.
 
 		DATABASE="senterica"
 		scheme_name="MLST_Achtman"
@@ -246,13 +250,12 @@ update_mlst() {
                                                                            --scheme_name "${scheme_name}" \
                                                                            --scheme_dir "${scheme_dir}" \
                                                                            --cpus ${cpus} \
-                                                                           --output_dir /home/external_databases/mlst/Salmonella
+                                                                           --output_dir /home/external_databases/mlst/Salmonella \
+                                                                           --workspace "${UPDATER_WORKSPACE}" \
+                                                                           --container_image "${UPDATER_CONTAINER_IMAGE}" \
+                                                                           --user "${UPDATER_USER}" \
+                                                                           --host "${UPDATER_HOST}"
 
-		if [ -d "/home/external_databases/mlst/Escherichia" ]; then
-                        rm -f /home/external_databases/mlst/Escherichia/*
-                else
-                        mkdir -p /home/external_databases/mlst/Escherichia
-                fi
 		DATABASE="ecoli"
 		scheme_name="MLST_Achtman" 
 		scheme_dir="Escherichia.Achtman7GeneMLST"
@@ -261,7 +264,11 @@ update_mlst() {
                                                                            --scheme_name "${scheme_name}" \
                                                                            --scheme_dir "${scheme_dir}" \
                                                                            --cpus ${cpus} \
-                                                                           --output_dir /home/external_databases/mlst/Escherichia
+                                                                           --output_dir /home/external_databases/mlst/Escherichia \
+                                                                           --workspace "${UPDATER_WORKSPACE}" \
+                                                                           --container_image "${UPDATER_CONTAINER_IMAGE}" \
+                                                                           --user "${UPDATER_USER}" \
+                                                                           --host "${UPDATER_HOST}"
 
 		if [ ! -d "/home/external_databases/mlst/Campylobacter" ]; then
                         mkdir -p /home/external_databases/mlst/Campylobacter
@@ -314,11 +321,8 @@ update_cgmlst() {
 						                --output_dir /home/external_databases/cgmlst/Campylobacter/jejuni/
 
 	elif [ ${genus} == "Salmonella" ]; then
-                if [ -d "/home/external_databases/cgmlst/Salmonella" ]; then
-                        rm -f /home/external_databases/cgmlst/Salmonella/*
-                else
-                        mkdir -p /home/external_databases/cgmlst/Salmonella
-                fi
+                # NOTE: do not wipe this directory – EnteroBase schema downloader uses a local checksum manifest
+                # (enterobase_md5.json) to decide whether an update is required.
 		DATABASE="senterica"
 		scheme_name="cgMLST_v2"
 		scheme_dir="Salmonella.cgMLSTv2"
@@ -326,13 +330,14 @@ update_cgmlst() {
 			                                                   --scheme_name "${scheme_name}" \
 								           --scheme_dir "${scheme_dir}" \
 								           --cpus ${cpus} \
-								           --output_dir /home/external_databases/cgmlst/Salmonella
+								           --output_dir /home/external_databases/cgmlst/Salmonella \
+                                                                           --workspace "${UPDATER_WORKSPACE}" \
+                                                                           --container_image "${UPDATER_CONTAINER_IMAGE}" \
+                                                                           --user "${UPDATER_USER}" \
+                                                                           --host "${UPDATER_HOST}"
         elif [ ${genus} == "Escherichia" ]; then
-                if [ -d "/home/external_databases/cgmlst/Escherichia" ]; then
-                        rm -f /home/external_databases/cgmlst/Escherichia/*
-                else
-                        mkdir -p /home/external_databases/cgmlst/Escherichia
-                fi
+                # NOTE: do not wipe this directory – EnteroBase schema downloader uses a local checksum manifest
+                # (enterobase_md5.json) to decide whether an update is required.
 		DATABASE="ecoli"
 		scheme_name="cgMLST" 
 		scheme_dir="Escherichia.cgMLSTv1"
@@ -340,14 +345,14 @@ update_cgmlst() {
                                                                            --scheme_name "${scheme_name}" \
                                                                            --scheme_dir "${scheme_dir}" \
                                                                            --cpus ${cpus} \
-								           --output_dir /home/external_databases/cgmlst/Escherichia
+								           --output_dir /home/external_databases/cgmlst/Escherichia \
+                                                                           --workspace "${UPDATER_WORKSPACE}" \
+                                                                           --container_image "${UPDATER_CONTAINER_IMAGE}" \
+                                                                           --user "${UPDATER_USER}" \
+                                                                           --host "${UPDATER_HOST}"
         elif [ ${genus} == "all" ]; then
 		echo "Downloading data for Escherichia at: $(date +"%H:%M %d-%m-%Y")" >> log
-		if [ -d "/home/external_databases/cgmlst/Escherichia" ]; then
-                        rm -f /home/external_databases/cgmlst/Escherichia/*
-                else
-                        mkdir -p /home/external_databases/cgmlst/Escherichia
-                fi
+		# NOTE: do not wipe – keep checksum manifest for incremental updates.
                 DATABASE="ecoli"
                 scheme_name="cgMLST"
                 scheme_dir="Escherichia.cgMLSTv1"
@@ -355,13 +360,13 @@ update_cgmlst() {
                                                                            --scheme_name "${scheme_name}" \
                                                                            --scheme_dir "${scheme_dir}" \
                                                                            --cpus ${cpus} \
-                                                                           --output_dir /home/external_databases/cgmlst/Escherichia	
+                                                                           --output_dir /home/external_databases/cgmlst/Escherichia \
+                                                                           --workspace "${UPDATER_WORKSPACE}" \
+                                                                           --container_image "${UPDATER_CONTAINER_IMAGE}" \
+                                                                           --user "${UPDATER_USER}" \
+                                                                           --host "${UPDATER_HOST}"	
 		echo "Downloading data for Salmonella at: $(date +"%H:%M %d-%m-%Y")" >> log
-		if [ -d "/home/external_databases/cgmlst/Salmonella" ]; then
-                        rm -f /home/external_databases/cgmlst/Salmonella/*
-                else
-                        mkdir -p /home/external_databases/cgmlst/Salmonella
-                fi
+		# NOTE: do not wipe – keep checksum manifest for incremental updates.
                 DATABASE="senterica"
                 scheme_name="cgMLST_v2"
                 scheme_dir="Salmonella.cgMLSTv2"
@@ -369,7 +374,11 @@ update_cgmlst() {
 			                                                   --scheme_name "${scheme_name}" \
 								           --scheme_dir "${scheme_dir}" \
 								           --cpus ${cpus} \
-								           --output_dir /home/external_databases/cgmlst/Salmonella
+								           --output_dir /home/external_databases/cgmlst/Salmonella \
+                                                                           --workspace "${UPDATER_WORKSPACE}" \
+                                                                           --container_image "${UPDATER_CONTAINER_IMAGE}" \
+                                                                           --user "${UPDATER_USER}" \
+                                                                           --host "${UPDATER_HOST}"
 
 		echo "Downloading data for Campylobacter at: $(date +"%H:%M %d-%m-%Y")" >> log
 		if [ -d "/home/external_databases/cgmlst/Campylobacter/jejuni" ]; then
@@ -445,84 +454,13 @@ update_pubmlst() {
 ## No update mechanism so we donload again files
 update_phiercc() {
 	local genus=${1}
-	if [ ${genus} == "Campylobacter" ]; then
-		if [ -d "/home/external_databases/phiercc_local/Campylobacter/jejuni" ]; then
-			rm -rf /home/external_databases/phiercc_local/Campylobacter/jejuni/*
-		else
-			mkdir -p /home/external_databases/phiercc_local/Campylobacter/jejuni/
-		fi
-		cd /home/external_databases/phiercc_local/Campylobacter/jejuni/
-                
-		wget https://github.com/michallaz/phiercc_pzh_mod/raw/refs/heads/main/plepiseq_data/Campylobacter/profile_complete_linkage.HierCC.gz
-		wget https://github.com/michallaz/phiercc_pzh_mod/raw/refs/heads/main/plepiseq_data/Campylobacter/profile_complete_linkage.HierCC.index
-		wget https://github.com/michallaz/phiercc_pzh_mod/raw/refs/heads/main/plepiseq_data/Campylobacter/profile_single_linkage.HierCC.gz
-		wget https://github.com/michallaz/phiercc_pzh_mod/raw/refs/heads/main/plepiseq_data/Campylobacter/profile_single_linkage.HierCC.index
-
-	elif [ ${genus} == "Escherichia" ]; then
-		if [ -d "/home/external_databases/phiercc_local/Escherichia" ]; then
-                        rm -rf /home/external_databases/phiercc_local/Escherichia/*
-		else
-			mkdir -p /home/external_databases/phiercc_local/Escherichia
-		fi
-		cd /home/external_databases/phiercc_local/Escherichia
-		
-		wget https://github.com/michallaz/phiercc_pzh_mod/raw/refs/heads/main/plepiseq_data/Escherichia/profile_single_linkage.HierCC.gz
-		wget https://github.com/michallaz/phiercc_pzh_mod/raw/refs/heads/main/plepiseq_data/Escherichia/profile_single_linkage.HierCC.index
-		wget https://github.com/michallaz/phiercc_pzh_mod/raw/refs/heads/main/plepiseq_data/Escherichia/profile_complete_linkage.HierCC.gz
-		wget https://github.com/michallaz/phiercc_pzh_mod/raw/refs/heads/main/plepiseq_data/Escherichia/profile_complete_linkage.HierCC.index
-
-	elif [ ${genus} == "Salmonella" ]; then
-		if [ -d "/home/external_databases/phiercc_local/Salmonella" ]; then
-			rm -rf /home/external_databases/phiercc_local/Salmonella/*
-		else
-			mkdir -p /home/external_databases/phiercc_local/Salmonella
-		fi
-		cd /home/external_databases/phiercc_local/Salmonella
-		wget https://github.com/michallaz/phiercc_pzh_mod/raw/refs/heads/main/plepiseq_data/Salmonella/profile_complete_linkage.HierCC.gz
-		wget https://github.com/michallaz/phiercc_pzh_mod/raw/refs/heads/main/plepiseq_data/Salmonella/profile_complete_linkage.HierCC.index
-		wget https://github.com/michallaz/phiercc_pzh_mod/raw/refs/heads/main/plepiseq_data/Salmonella/profile_single_linkage.HierCC.gz
-		wget https://github.com/michallaz/phiercc_pzh_mod/raw/refs/heads/main/plepiseq_data/Salmonella/profile_single_linkage.HierCC.index
-	
-	
-	elif [ ${genus} == "all" ]; then
-		if [ -d "/home/external_databases/phiercc_local/Salmonella" ]; then
-                        rm -rf /home/external_databases/phiercc_local/Salmonella/*
-                else
-                        mkdir -p /home/external_databases/phiercc_local/Salmonella
-                fi
-
-		cd /home/external_databases/phiercc_local/Salmonella
-
-		wget https://github.com/michallaz/phiercc_pzh_mod/raw/refs/heads/main/plepiseq_data/Salmonella/profile_complete_linkage.HierCC.gz
-                wget https://github.com/michallaz/phiercc_pzh_mod/raw/refs/heads/main/plepiseq_data/Salmonella/profile_complete_linkage.HierCC.index
-                wget https://github.com/michallaz/phiercc_pzh_mod/raw/refs/heads/main/plepiseq_data/Salmonella/profile_single_linkage.HierCC.gz
-                wget https://github.com/michallaz/phiercc_pzh_mod/raw/refs/heads/main/plepiseq_data/Salmonella/profile_single_linkage.HierCC.index
-
-		if [ -d "/home/external_databases/phiercc_local/Escherichia" ]; then
-                        rm -rf /home/external_databases/phiercc_local/Escherichia/*
-                else
-                        mkdir -p /home/external_databases/phiercc_local/Escherichia
-                fi
-                cd /home/external_databases/phiercc_local/Escherichia
-
-		wget https://github.com/michallaz/phiercc_pzh_mod/raw/refs/heads/main/plepiseq_data/Escherichia/profile_single_linkage.HierCC.gz
-                wget https://github.com/michallaz/phiercc_pzh_mod/raw/refs/heads/main/plepiseq_data/Escherichia/profile_single_linkage.HierCC.index
-                wget https://github.com/michallaz/phiercc_pzh_mod/raw/refs/heads/main/plepiseq_data/Escherichia/profile_complete_linkage.HierCC.gz
-                wget https://github.com/michallaz/phiercc_pzh_mod/raw/refs/heads/main/plepiseq_data/Escherichia/profile_complete_linkage.HierCC.index
-
-		if [ -d "/home/external_databases/phiercc_local/Campylobacter/jejuni" ]; then
-			rm -rf /home/external_databases/phiercc_local/Campylobacter/jejuni/*
-		else
-			mkdir -p /home/external_databases/phiercc_local/Campylobacter/jejuni/
-		fi
-		cd /home/external_databases/phiercc_local/Campylobacter/jejuni/
-
-		wget https://github.com/michallaz/phiercc_pzh_mod/raw/refs/heads/main/plepiseq_data/Campylobacter/profile_complete_linkage.HierCC.gz
-                wget https://github.com/michallaz/phiercc_pzh_mod/raw/refs/heads/main/plepiseq_data/Campylobacter/profile_complete_linkage.HierCC.index
-                wget https://github.com/michallaz/phiercc_pzh_mod/raw/refs/heads/main/plepiseq_data/Campylobacter/profile_single_linkage.HierCC.gz
-                wget https://github.com/michallaz/phiercc_pzh_mod/raw/refs/heads/main/plepiseq_data/Campylobacter/profile_single_linkage.HierCC.index
-
-	fi
+	python3 -u /home/update/download_phiercc.py \
+		--workspace "${UPDATER_WORKSPACE}" \
+		--container_image "${UPDATER_CONTAINER_IMAGE}" \
+		--user "${UPDATER_USER}" \
+		--host "${UPDATER_HOST}" \
+		--genus "${genus}" \
+		--output_dir "/home/external_databases/phiercc_local"
 }
 
 # Uniref50 and Uniref50 for Virual sequences used by alphafold
