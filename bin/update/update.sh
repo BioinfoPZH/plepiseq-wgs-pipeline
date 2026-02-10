@@ -165,14 +165,16 @@ update_mlst_campylo() {
 	local directory=${1}
 	local spec=${2}
 	local db=${3}
-	if [ -d ${directory} ]; then
-		rm -f ${directory}/*
-	else
-		mkdir -p ${directory}
-	fi
-	
-	cd ${directory}
-	python3 /home/update/download_mlst_campylobacter.py "${spec}" "${db}" >> log 2>&1
+	python3 -u /home/update/download_cgmlst_pubmlst.py --database "${spec}" \
+	                                                  --scheme_name "${db}" \
+	                                                  --cpus ${cpus} \
+	                                                  --output_dir "${directory}" \
+	                                                  --workspace "${UPDATER_WORKSPACE}" \
+	                                                  --container_image "${UPDATER_CONTAINER_IMAGE}" \
+	                                                  --user "${UPDATER_USER}" \
+	                                                  --host "${UPDATER_HOST}" \
+	                                                  --oauth_credentials_file /home/update/pubmlst_oauth.txt \
+	                                                  --download_workers 4
 }
 
 update_mlst() {
@@ -308,17 +310,18 @@ update_cgmlst() {
 	local genus=$1
 	local cpus=$2 
 	if [ ${genus} == "Campylobacter" ]; then
-		if [ -d "/home/external_databases/cgmlst/Campylobacter/jejuni" ]; then
-                        rm -f /home/external_databases/cgmlst/Campylobacter/jejuni/*
-                else
-                        mkdir -p /home/external_databases/cgmlst/Campylobacter/jejuni/
-                fi
 		DATABASE="pubmlst_campylobacter_seqdef"
 		schema_name="C. jejuni / C. coli cgMLST v2"
-		python3 /home/update/download_cgmlst_pubmlst.py --database "${DATABASE}" \
-			                                        --scheme_name "${schema_name}" \
-						                --cpus ${cpus} \
-						                --output_dir /home/external_databases/cgmlst/Campylobacter/jejuni/
+		python3 -u /home/update/download_cgmlst_pubmlst.py --database "${DATABASE}" \
+			                                           --scheme_name "${schema_name}" \
+						                   --cpus ${cpus} \
+						                   --output_dir /home/external_databases/cgmlst/Campylobacter/jejuni/ \
+						                   --workspace "${UPDATER_WORKSPACE}" \
+						                   --container_image "${UPDATER_CONTAINER_IMAGE}" \
+						                   --user "${UPDATER_USER}" \
+						                   --host "${UPDATER_HOST}" \
+						                   --oauth_credentials_file /home/update/pubmlst_oauth.txt \
+						                   --download_workers 4
 
 	elif [ ${genus} == "Salmonella" ]; then
                 # NOTE: do not wipe this directory – EnteroBase schema downloader uses a local checksum manifest
@@ -381,17 +384,18 @@ update_cgmlst() {
                                                                            --host "${UPDATER_HOST}"
 
 		echo "Downloading data for Campylobacter at: $(date +"%H:%M %d-%m-%Y")" >> log
-		if [ -d "/home/external_databases/cgmlst/Campylobacter/jejuni" ]; then
-                        rm -f /home/external_databases/cgmlst/Campylobacter/jejuni/*
-                else
-                        mkdir -p /home/external_databases/cgmlst/Campylobacter/jejuni/
-                fi
 		DATABASE="pubmlst_campylobacter_seqdef"
                 schema_name="C. jejuni / C. coli cgMLST v2"
-                python3 /home/update/download_cgmlst_pubmlst.py --database "${DATABASE}" \
-                                                                --scheme_name "${schema_name}" \
-                                                                --cpus ${cpus} \
-                                                                --output_dir /home/external_databases/cgmlst/Campylobacter/jejuni/
+                python3 -u /home/update/download_cgmlst_pubmlst.py --database "${DATABASE}" \
+                                                                   --scheme_name "${schema_name}" \
+                                                                   --cpus ${cpus} \
+                                                                   --output_dir /home/external_databases/cgmlst/Campylobacter/jejuni/ \
+                                                                   --workspace "${UPDATER_WORKSPACE}" \
+                                                                   --container_image "${UPDATER_CONTAINER_IMAGE}" \
+                                                                   --user "${UPDATER_USER}" \
+                                                                   --host "${UPDATER_HOST}" \
+                                                                   --oauth_credentials_file /home/update/pubmlst_oauth.txt \
+                                                                   --download_workers 4
 	fi
 }
 

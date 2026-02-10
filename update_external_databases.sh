@@ -19,10 +19,11 @@ genus="all" #  name of the genus for which database is updated, only valid if ml
 output=""  #  top-level directory with databases, each database will be a subdirectory of it, hierarchy of databases in that directory is PREDEFINED
 image_name="plepiseq-wgs-pipeline-updater:latest" #  name of the image within which all updates are performed
 cpus=1
+pubmlst_oauth_file="" # optional path to PubMLST OAuth credentials file on host
 
 # Function to display help message
 function show_help() {
-    echo "Usage: $0 --database <string> --output <path> --image_name <string> [--cpus <int> --kraken-type <type> --genus <Salmonella|Escherichia|Campylobacter|all>]"
+    echo "Usage: $0 --database <string> --output <path> --image_name <string> [--cpus <int> --kraken-type <type> --genus <Salmonella|Escherichia|Campylobacter|all> --pubmlst_oauth_file <path>]"
     echo
     echo "Options:"
     echo "  --database      Name of the database to download or update"
@@ -42,9 +43,10 @@ function show_help() {
     echo "  --genus         Name of a genus (valid only for mlst, cgmlst, and enterobase databases). If not provided database is downloaded for all three genuses"
     echo "                  Nazwa rodzaju bakterii dla ktorego pobierana jest baza (tylko w przypadku baz mlst, cgmls oraz enterobase). Mozliwe wartosci to:"
     echo "                  Salmonella Escherichia Campylobacter all"
+    echo "  --pubmlst_oauth_file  Optional path to PubMLST OAuth credentials file on host; will be mounted read-only into container"
 }
 
-OPTIONS=$(getopt -o h --long database:,output:,cpus:,image_name:,kraken_type:,genus:,help -- "$@")
+OPTIONS=$(getopt -o h --long database:,output:,cpus:,image_name:,kraken_type:,genus:,pubmlst_oauth_file:,help -- "$@")
 
 eval set -- "$OPTIONS"
 
@@ -79,6 +81,10 @@ while true; do
             ;;        
         --genus)
             genus="$2"
+            shift 2
+            ;;
+        --pubmlst_oauth_file)
+            pubmlst_oauth_file="$2"
             shift 2
             ;;
         -h|--help)
@@ -182,10 +188,26 @@ echo "Docker image: ${image_name}"
 echo "Downloading all databases may take several hours"
 [[ "$database" == "kraken2" ]] && echo "Kraken Type: ${kraken_type}"
 [[ "$database" == "mlst"  ||  "$database" == "cgmlst" || "$database" == "enterobase" ]] && echo "Genus: ${genus}"
+[[ -n "$pubmlst_oauth_file" ]] && echo "PubMLST OAuth file: ${pubmlst_oauth_file}"
+
+EXTRA_VOLUMES=""
+if [[ -n "$pubmlst_oauth_file" ]]; then
+    pubmlst_oauth_file=$(realpath "${pubmlst_oauth_file}")
+    if [[ ! -f "$pubmlst_oauth_file" ]]; then
+        echo "Error: --pubmlst_oauth_file does not exist: $pubmlst_oauth_file"
+        exit 1
+    fi
+    if [[ ! -r "$pubmlst_oauth_file" ]]; then
+        echo "Error: --pubmlst_oauth_file is not readable: $pubmlst_oauth_file"
+        exit 1
+    fi
+    EXTRA_VOLUMES="--volume ${pubmlst_oauth_file}:/home/update/pubmlst_oauth.txt:ro"
+fi
 
 
 docker run --rm \
        --volume "${output}:/home/external_databases:rw" \
+       ${EXTRA_VOLUMES} \
        --user $(id -u):$(id -g) \
        -e UPDATER_CONTAINER_IMAGE="${image_name}" \
        -e UPDATER_USER="$(id -un)" \
