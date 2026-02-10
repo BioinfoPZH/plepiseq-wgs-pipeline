@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import getpass
+import gzip
 import json
 import socket
 import time
@@ -95,7 +96,22 @@ def _download_json_with_retry(
                 last_err = f"HTTP {r.status_code}"
                 raise RuntimeError(last_err)
             parsed = r.json()
-            output_path.write_text(json.dumps(parsed, indent=2) + "\n", encoding="utf-8")
+            # Canonicalize to make update decisions stable across runs:
+            # - Sort loci list by locus name
+            # - Dump with sorted keys
+            try:
+                loci = parsed.get("loci")
+                if isinstance(loci, list):
+                    loci_sorted = sorted(
+                        (x for x in loci if isinstance(x, dict)),
+                        key=lambda d: str(d.get("locus", "")),
+                    )
+                    parsed = dict(parsed)
+                    parsed["loci"] = loci_sorted
+            except Exception:
+                pass
+
+            output_path.write_text(json.dumps(parsed, indent=2, sort_keys=True) + "\n", encoding="utf-8")
             return True, attempt, parsed
         except Exception as e:
             last_err = str(e)
@@ -123,6 +139,17 @@ def _build_expected_files(database: str, scheme_name: str) -> List[str]:
         expected.append("all_allels.fasta")
 
     return expected
+
+
+def _gunzip_to_file(*, src_gz: Path, dest: Path) -> None:
+    """
+    Decompress src_gz to dest. This is used for stable checksums, because .gz
+    bytes may vary between requests even if decompressed content is identical.
+    """
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    with gzip.open(src_gz, "rb") as fin:
+        data = fin.read()
+    dest.write_bytes(data)
 
 
 @click.command()
@@ -213,7 +240,10 @@ def main(
     source = {
         "source_type": "https",
         "reference": "https://enterobase.warwick.ac.uk",
-        "expected_raw_files": ["loci.json", "profiles.list.gz"],
+        # Update decision is based on stable content checksums:
+        # - canonicalized loci.json
+        # - decompressed profiles.list (not profiles.list.gz)
+        "expected_raw_files": ["loci.json", "profiles.list"],
         "expected_processed_files": _build_expected_files(database, scheme_name),
     }
 
@@ -243,6 +273,7 @@ def main(
 
     loci_json_path = out_dir / "loci.json"
     profiles_gz_path = out_dir / "profiles.list.gz"
+    profiles_list_path = out_dir / "profiles.list"
     manifest_path = out_dir / "enterobase_md5.json"
 
     # -----------------------------
@@ -313,13 +344,22 @@ def main(
         timeout_s=60,
     )
 
+    # Decompress profiles for stable checksums (gzip headers may change between requests)
+    ok_profiles_list = False
+    if ok_profiles and profiles_gz_path.exists():
+        try:
+            _gunzip_to_file(src_gz=profiles_gz_path, dest=profiles_list_path)
+            ok_profiles_list = True
+        except Exception as e:
+            logger.warning("Failed to decompress profiles.list.gz to profiles.list: %s", e)
+
     finished_at = get_timestamp()
-    if not ok_json or not ok_profiles:
+    if not ok_json or not ok_profiles or not ok_profiles_list:
         rb.add_named_milestone(
             "REMOTE_FILES_DOWNLOAD_STATUS",
             {
                 "status": StatusType.FAILED.value,
-                "message": "Failed to download required metadata artifacts (loci.json and/or profiles.list.gz).",
+                "message": "Failed to download required metadata artifacts (loci.json and/or profiles.list.gz) or failed to decompress profiles.list.",
                 "started_at": started_at,
                 "finished_at": finished_at,
                 "attempts": max(attempts_json, attempts_profiles),
@@ -327,8 +367,10 @@ def main(
                 "metrics": {
                     "loci_json_ok": ok_json,
                     "profiles_gz_ok": ok_profiles,
+                    "profiles_list_ok": ok_profiles_list,
                     "loci_json_path": str(loci_json_path),
                     "profiles_gz_path": str(profiles_gz_path),
+                    "profiles_list_path": str(profiles_list_path),
                 },
             },
         )
@@ -357,6 +399,7 @@ def main(
                 "loci_count": loci_count,
                 "loci_json_bytes": int(loci_json_path.stat().st_size) if loci_json_path.exists() else 0,
                 "profiles_gz_bytes": int(profiles_gz_path.stat().st_size) if profiles_gz_path.exists() else 0,
+                "profiles_list_bytes": int(profiles_list_path.stat().st_size) if profiles_list_path.exists() else 0,
             },
         },
     )
@@ -380,8 +423,10 @@ def main(
         first_build = True
 
     new_md5: Dict[str, str] = {
+        # loci.json is canonicalized on write
         "loci.json": file_md5sum(str(loci_json_path)),
-        "profiles.list.gz": file_md5sum(str(profiles_gz_path)),
+        # Use decompressed profiles.list for stable checksum
+        "profiles.list": file_md5sum(str(profiles_list_path)),
     }
 
     changed = [k for k, v in new_md5.items() if old_md5.get(k, "") != v]
@@ -392,7 +437,11 @@ def main(
 
     if update_required:
         msg = "No previous manifest: treating as first build." if first_build else ("Update required: checksum change detected." if changed else "Update required: expected files missing locally.")
-        remove_old_workspace(out_dir, keep=("logs", "reports", manifest_path.name, loci_json_path.name, profiles_gz_path.name), logger=logger)
+        remove_old_workspace(
+            out_dir,
+            keep=("logs", "reports", manifest_path.name, loci_json_path.name, profiles_gz_path.name, profiles_list_path.name),
+            logger=logger,
+        )
         # Persist new baseline immediately (same approach as VFDB)
         manifest_path.write_text(json.dumps(new_md5, indent=2) + "\n", encoding="utf-8")
 
@@ -526,24 +575,29 @@ def main(
         return
 
     # Decompress profiles + loci gz
-    ok_profiles_gunzip = _execute_command(f"gunzip -f {profiles_gz_path}", logger=logger)
-    if not ok_profiles_gunzip:
-        proc = {
-            "status": StatusType.FAILED.value,
-            "message": "Failed to gunzip profiles.list.gz",
-            "started_at": started_at,
-            "finished_at": get_timestamp(),
-            "attempts": 1,
-            "retryable": False,
-            "metrics": {"file": str(profiles_gz_path)},
-        }
-        rb.add_named_milestone("PROCESSING_STATUS", proc)
-        remaining_steps.remove("PROCESSING_STATUS")
-        skip_remaining_steps(remaining_steps, "Skipped: processing failed.")
-        rb.fail(code="PROCESSING_FAILED", message=proc["message"], retry_recommended=False)
-        rb.finalize("FAIL")
-        rb.write(str(report_dir / report_file))
-        return
+    # profiles.list is produced during metadata download; keep the gz as optional reference.
+    if not profiles_list_path.exists():
+        try:
+            _gunzip_to_file(src_gz=profiles_gz_path, dest=profiles_list_path)
+        except Exception:
+            ok_profiles_gunzip = _execute_command(f"gunzip -f {profiles_gz_path}", logger=logger)
+            if not ok_profiles_gunzip:
+                proc = {
+                    "status": StatusType.FAILED.value,
+                    "message": "Failed to produce profiles.list from profiles.list.gz",
+                    "started_at": started_at,
+                    "finished_at": get_timestamp(),
+                    "attempts": 1,
+                    "retryable": False,
+                    "metrics": {"file": str(profiles_gz_path)},
+                }
+                rb.add_named_milestone("PROCESSING_STATUS", proc)
+                remaining_steps.remove("PROCESSING_STATUS")
+                skip_remaining_steps(remaining_steps, "Skipped: processing failed.")
+                rb.fail(code="PROCESSING_FAILED", message=proc["message"], retry_recommended=False)
+                rb.finalize("FAIL")
+                rb.write(str(report_dir / report_file))
+                return
 
     for locus in loci:
         gz = out_dir / f"{locus}.fasta.gz"
