@@ -468,26 +468,15 @@ update_phiercc() {
 }
 
 # Uniref50 and Uniref50 for Virual sequences used by alphafold
-## No update mechanism
+## Uses milestone-based python client (selective updates; does NOT wipe other AlphaFold assets)
 update_alphafold() {
-	if [ -d "/home/external_databases/alphafold/uniref50" ]; then
-		rm -rf /home/external_databases/alphafold/uniref50/*
-	else
-		mkdir -p /home/external_databases/alphafold/uniref50/
-	fi
-	
-	wget -O /home/external_databases/alphafold/uniref50/uniref50_viral.fasta "https://rest.uniprot.org/uniref/stream?format=fasta&query=%28%28taxonomy_id%3A10239%29+AND+%28identity%3A0.5%29%29"
-	wget -O /home/external_databases/alphafold/uniref50/uniref50.fasta.gz https://ftp.uniprot.org/pub/databases/uniprot/uniref/uniref50/uniref50.fasta.gz
-	gunzip /home/external_databases/alphafold/uniref50/uniref50.fasta.gz
-
-	if [ -d "/home/external_databases/alphafold/uniprot" ]; then
-                rm -rf /home/external_databases/alphafold/uniprot/uniprot_sprot.fasta
-        else
-                mkdir -p /home/external_databases/alphafold/uniprot
-        fi
-
-	wget -O /home/external_databases/alphafold/uniprot/uniprot_sprot.fasta.gz "https://ftp.uniprot.org/pub/databases/uniprot/current_release/knowledgebase/complete/uniprot_sprot.fasta.gz"
-	gunzip /home/external_databases/alphafold/uniprot/uniprot_sprot.fasta.gz
+	python3 -u /home/update/download_alphafold.py \
+		--workspace "${UPDATER_WORKSPACE}" \
+		--container_image "${UPDATER_CONTAINER_IMAGE}" \
+		--user "${UPDATER_USER}" \
+		--host "${UPDATER_HOST}" \
+		--output_dir "/home/external_databases/alphafold"
+	return $?
 }
 #############
 # Main code *
