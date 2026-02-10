@@ -418,7 +418,7 @@ def processing_status_dummy(output_dir: Path, logger: logging.Logger):
 @click.command()
 @click.option("-o", "--local_path", required=True, type=click.Path(), help="[REQUIRED] Full path to the destination directory")
 @click.option("-d", "--db_name", required=True, type=click.Choice(DB_NAMES), help="Database name (if unsure, use 'standard')")
-@click.option("--workspace", type=str, default=None, help="Workspace path. Used only in reports.  env variable pas to the container that includes a root where all databases are stored in separate subdirectories.")
+@click.option("--workspace", type=str, default=str(Path.cwd()), help="Workspace path. Used only in reports.  env variable pas to the container that includes a root where all databases are stored in separate subdirectories.")
 @click.option("--run_id", type=str, default=None, help="Unique run ID.")
 @click.option("--container_image", type=str, help="Container image name.", required=True)
 @click.option("--report_file", type=str, default=None, help="Report file name.")
