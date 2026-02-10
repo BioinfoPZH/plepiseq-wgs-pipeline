@@ -37,9 +37,12 @@ WORKDIR /opt/docker/EToKi
 ### tutaj tworzymy tylko katalog i podczas konfigurowania Etoki mowimy mu aby tam zagladal w trakcie pracy
 ### przy starcie kontenera po prostu mapujemy baze z dysku na kontener przez "-v"
 ### baza krakenowa wazy 240 Gb  
+### usearch must be manually copied to /opt/docker/EToKi/externals,  "--usearch" option seems not to work as expected
 
 RUN mkdir -p /kraken2_sdb
+RUN sed -i "s|https://netcologne.dl.sourceforge.net/project/bbmap/BBMap_38.90.tar.gz|https://sourceforge.net/projects/bbmap/files/BBMap_38.90.tar.gz/download|g" modules/configure.py
 RUN python EToKi.py configure --install --usearch /opt/docker/usearch11.0.667_i86linux32 --link_krakenDB /kraken2_sdb/ --path iqtree=/usr/bin/iqtree
+RUN cp /opt/docker/usearch11.0.667_i86linux32 /opt/docker/EToKi/externals 
 
 ENV PATH="/opt/docker/EToKi:/opt/docker/EToKi/externals/ncbi-blast-2.8.1+/bin:/opt/docker/EToKi/externals/:$PATH"
 

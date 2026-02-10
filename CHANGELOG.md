@@ -1,6 +1,9 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.4.6] - 2026-02-10
+### Fixed
+- Update `Dockerfile-bacterial`: ensure EToKi uses a working BBMap download URL and has access to `usearch`.
 
 ## [1.4.5] - 2026-01-20
 ### Fixed
