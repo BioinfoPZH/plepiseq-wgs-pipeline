@@ -1,6 +1,16 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.5.0] - 2026-02-11
+### Changed
+- Update `Dockerfile-bacterial` base to Ubuntu 22.04/CUDA 12.1 and Python 3.10
+- Replace KmerFinder (obsolete since 12.2025) with SpeciesFinder
+- Update MetaPhlAn version to 4.2.4 
+- Update Spades version to 4.3.0
+- Fixed versions for most programs and their dependencies
+- Adjusted memory requirments of modules that use MetaPhlAn and SpeciesFinder
+
+
 ## [1.4.6] - 2026-02-10
 ### Fixed
 - Update `Dockerfile-bacterial`: ensure EToKi uses a working BBMap download URL and has access to `usearch`.
