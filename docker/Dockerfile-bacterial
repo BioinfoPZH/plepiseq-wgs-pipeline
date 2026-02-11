@@ -1,14 +1,14 @@
-FROM nvidia/cuda:11.2.2-cudnn8-runtime-ubuntu20.04
+FROM nvidia/cuda:12.1.0-cudnn8-runtime-ubuntu22.04
 LABEL maintainer "Michal Lazniewski <mlazniewski@pzh.gov.pl>"
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
 
 RUN apt-get update --fix-missing && apt upgrade -y && \
-    apt-get install build-essential pkgconf python3.8 python3-pip default-jre curl unzip wget vim bc htop git gcc zlib1g-dev libbz2-dev libcurl4-gnutls-dev libssl-dev liblzma-dev python3-pycurl screen iqtree mash seqtk -y
+    apt-get install build-essential pkgconf python3.10 python3-pip default-jre curl unzip wget vim bc htop git gcc zlib1g-dev libbz2-dev libcurl4-gnutls-dev libssl-dev liblzma-dev python3-pycurl screen iqtree mash seqtk -y
 
 
-RUN pip install ete3 numba numpy==1.23.4 biopython==1.73 psutil pysam cgecore packaging tables==3.7.0 h5py xlrd 
+RUN pip install ete3 numba numpy==1.23.4 biopython==1.73 psutil pysam 'cgecore>=1.5.5,<2.0' packaging tables==3.7.0 h5py xlrd 
 ### xlrd - allows to read excels, need that for VFDB
 ### Not sure why I choose these version of some libraries  
 
@@ -38,13 +38,25 @@ WORKDIR /opt/docker/EToKi
 ### przy starcie kontenera po prostu mapujemy baze z dysku na kontener przez "-v"
 ### baza krakenowa wazy 240 Gb  
 ### usearch must be manually copied to /opt/docker/EToKi/externals,  "--usearch" option seems not to work as expected
+### f070664 latest commit as of 02.2026 (repo was not updated since 2024)
 
-RUN mkdir -p /kraken2_sdb
-RUN sed -i "s|https://netcologne.dl.sourceforge.net/project/bbmap/BBMap_38.90.tar.gz|https://sourceforge.net/projects/bbmap/files/BBMap_38.90.tar.gz/download|g" modules/configure.py
-RUN python EToKi.py configure --install --usearch /opt/docker/usearch11.0.667_i86linux32 --link_krakenDB /kraken2_sdb/ --path iqtree=/usr/bin/iqtree
+RUN git reset --hard f070664; \
+    mkdir -p /kraken2_sdb; \
+    sed -i "s|https://netcologne.dl.sourceforge.net/project/bbmap/BBMap_38.90.tar.gz|https://sourceforge.net/projects/bbmap/files/BBMap_38.90.tar.gz/download|g" modules/configure.py
+
+    RUN python EToKi.py configure --install --usearch /opt/docker/usearch11.0.667_i86linux32 --link_krakenDB /kraken2_sdb/ --path iqtree=/usr/bin/iqtree2
 RUN cp /opt/docker/usearch11.0.667_i86linux32 /opt/docker/EToKi/externals 
 
 ENV PATH="/opt/docker/EToKi:/opt/docker/EToKi/externals/ncbi-blast-2.8.1+/bin:/opt/docker/EToKi/externals/:$PATH"
+
+### Update spades to version 4.2 and link the binary to /opt/docker/EToKi/externals/spades
+WORKDIR /opt/docker/
+RUN git clone https://github.com/ablab/spades.git ;\
+    cd /opt/docker/spades; \
+    git reset --hard 874c54b; \
+    ./spades_compile.sh -j 10;\
+    ln -sfn /opt/docker/spades/bin/spades.py /opt/docker/EToKi/externals/spades.py ;\
+    cd /opt/docker
 
 ## Updating pilon
 RUN wget -O /opt/docker/EToKi/externals/pilon.jar https://github.com/broadinstitute/pilon/releases/download/v1.24/pilon-1.24.jar
@@ -68,12 +80,14 @@ RUN git clone https://bitbucket.org/genomicepidemiology/kma.git; cd kma ; make; 
 ### Most are just python scripts
 ENV VIRULENCEFINDER_VERSION 2.0.5
 
-RUN git clone https://bitbucket.org/genomicepidemiology/plasmidfinder.git; \
-    git clone https://bitbucket.org/genomicepidemiology/kmerfinder.git; \
+### Plasmidfinder version is pinned to commit from 	2023-08-16, must be updated eventually
+	
+RUN git clone https://bitbucket.org/genomicepidemiology/plasmidfinder.git; cd plasmidfinder; git reset --hard 113df12; cd /opt/docker; \
+    git clone https://bitbucket.org/genomicepidemiology/speciesfinder.git; cd speciesfinder; python -m pip install --no-cache-dir . ; cd /opt/docker; \
     git clone https://bitbucket.org/genomicepidemiology/spifinder.git; \
     git clone https://bitbucket.org/genomicepidemiology/cgmlstfinder.git; \
     git clone https://bitbucket.org/genomicepidemiology/mlst.git ;\
-    pip install resfinder ;\
+    pip install resfinder==4.7.0 ;\
     git clone https://bitbucket.org/genomicepidemiology/virulencefinder.git; cd virulencefinder; git checkout tags/${VIRULENCEFINDER_VERSION} ;\
     cd /opt/docker
  
@@ -84,11 +98,16 @@ ENV PATH="/opt/docker/kma:$PATH"
 
 # Metaphlan
 
-### Metaphlan database is downloaded elsewhere
-RUN git clone https://github.com/biobakery/MetaPhlAn.git; cd /opt/docker/MetaPhlAn; pip install .; cd /opt/docker 
+### Metaphlan database is downloaded elsewhere /force version 4.2.4/
+RUN git clone https://github.com/biobakery/MetaPhlAn.git; \
+    cd /opt/docker/MetaPhlAn; \
+    git reset --hard b7a434b038df4eb2cac6f04a42669c49fb2344e7; \
+    pip install .; \
+    cd /opt/docker 
 
 # Prodigal (alternative to Prokka)
-RUN git clone https://github.com/hyattpd/Prodigal.git; cd /opt/docker/Prodigal; \
+RUN git clone https://github.com/hyattpd/Prodigal.git; \
+    cd /opt/docker/Prodigal; \
     make install; \
     cd /opt/docker
 
@@ -118,51 +137,21 @@ RUN wget https://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/2.15.0/ncbi-blast
 
 ### Do not use make -j, some binaries are not properly created
 ### Like blast to use this version of Flye (not one from EToki) call /opt/docker/Flye/bin/Flye explicitly
-
+# fix to version 2.8.3-b1695 /commit 886b8c1/
 RUN git clone https://github.com/fenderglass/Flye ;\
     cd /opt/docker/Flye ;\
+    git reset --hard 886b8c1;\
     make ;\
     cd /opt/docker
-
-# Canu and nanopolish
-
-###  NOT used by the pipeline, at least for now, but maybe in the future
-
-# WORKDIR /data
-# RUN git clone https://github.com/marbl/canu.git ;\
-#    cd /opt/docker/canu/src/ ;\
-#    make ;\
-#    sed -i 's/\$java = `command -v \$java`/\$java = `which \$java`/'  /opt/docker/canu/build/bin/../lib/perl5/site_perl/canu/Defaults.pm ;\
-#    sed -i 's/--threads 2/--threads 1/g'  /opt/docker/canu/build/bin/../lib/perl5/site_perl/canu/Consensus.pm ;\
-#    cd /opt/docker 
-
-### canu ma problem z wykryciem javy przez blad w jego skrypcie
-### /opt/docker/canu/build/bin/../lib/perl5/site_perl/canu/Defaults.pm
-### linijka 1082 jest 
-### $java = `command -v $java`;  #  See Execution.pm getBinDirectoryShellCode()
-### powoduje ze polecenie "java" nie jest wywolywane, bo "command", polecenie shellai, u mnie w docker z jakiego powodu nie dziala
-### wystarczy ta linijke  zamienic na
-### $java = `which $java`
-### Przynajmniej poki autorzy canu nie zauwaza bledu, choc nie wiem czy nie jest to kwestia mojego dockera
-
-
-# RUN git clone --recursive https://github.com/jts/nanopolish.git ;\
-# 805318cef87bd5d67064efa299b5d1cf948367fd
-
-# WORKDIR /data/canu/src
-# RUN make -j 20
-# WORKDIR /data/nanopolish
-# RUN pip install -r /data/nanopolish/scripts/requirements.txt
-# Nanopolish ma specjalnie bez opcji -j bo potrafi sie nie budowac obraz przy wielu procesorach
-# RUN make 
 
 # Medaka
 
 RUN pip install urllib3==1.26.16 pysam==0.21.0 parasail==1.3.4 ;\
     pip install pyabpoa==1.4.0 ;\
     apt update ;\
-    apt install python3.8-venv libncurses5-dev -y
+    apt install python3.10-venv libncurses5-dev -y
 
+# Medaka bacterial pipelien use it, but pipeline should be migrated to use the same image viral pipeline is currently using
 RUN curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash
 RUN apt install git-lfs ;\
     git lfs install ;\
@@ -212,29 +201,9 @@ RUN git clone https://github.com/phac-nml/ecoli_serotyping.git ;\
     ectyper_init ;\
     cd /opt/docker
 
-# Raxml and iqtree will be pushed to a separate dockerfile
-# RaXML (fixed version to lataest commit available on 05.04.2025)
-# RUN apt update && apt install roary bison flex -y
-# RUN git clone --recursive https://github.com/amkozlov/raxml-ng  ;\
-#    cd raxml-ng ;\
-#    git checkout 805318cef87bd5d67064efa299b5d1cf948367fd ;\
-#    mkdir build && cd build ;\
-#    cmake .. ;\
-#    make -j 4 && make install ;\
-#    cd /opt/docker
-
-#RUN wget https://github.com/iqtree/iqtree2/releases/download/v2.4.0/iqtree-2.4.0-Linux-intel.tar.gz ;\
-#    tar -zxf iqtree-2.4.0-Linux-intel.tar.gz ;\
-#    cp iqtree-2.4.0-Linux-intel/bin/* /usr/bin 
-
-## ECTyper databases, obsolete used by ectyper v.1.0
-
-#RUN wget -O /usr/local/lib/python3.8/dist-packages/ectyper-1.0.0-py3.8.egg/ectyper/Data/assembly_summary_refseq.txt http://ftp.ncbi.nlm.nih.gov/genomes/ASSEMBLY_REPORTS/assembly_summary_refseq.txt ;\  
-#    wget -O  /usr/local/lib/python3.8/dist-packages/ectyper-1.0.0-py3.8.egg/ectyper/Data/refseq.genomes.k21s1000.msh https://gembox.cbcb.umd.edu/mash/refseq.genomes.k21s1000.msh
-
 
 # Custom scripts 
-COPY bin/bacteria/all_functions_salmonella.py bin/bacteria/run_blastn_ver11.sh bin/bacteria/parse_fastqc_output.py data/bacteria/ne_10m_admin_0_countries.geojson bin/bacteria/plot_historical_data_plotly.py  bin/bacteria/parse_kmerfinder.py /data/
+COPY bin/bacteria/all_functions_salmonella.py bin/bacteria/run_blastn_ver11.sh bin/bacteria/parse_fastqc_output.py data/bacteria/ne_10m_admin_0_countries.geojson bin/bacteria/plot_historical_data_plotly.py  bin/bacteria/parse_speciesfinder.py /data/
 
 COPY bin/bacteria/json_output_contaminations.py bin/bacteria/coverage_filter.py bin/bacteria/calculate_stats.py bin/bacteria/run_VFDB.sh bin/bacteria/run_fastqc_and_generate_json.py bin/bacteria/initial_mlst_parser.py bin/bacteria/extract_final_stats_parser.py bin/bacteria/resfinder_parser.py bin/bacteria/amrfinder_parser.py bin/bacteria/plasmidfinder_parser.py bin/bacteria/sistr_parser.py bin/bacteria/seqsero_parser.py bin/bacteria/ectyper_parser.py bin/bacteria/spifinder_parser.py bin/bacteria/vfdb_parser.py /bin/bacteria/virulencefinder_parser.py bin/bacteria/prepare_full_json.py /opt/docker/EToKi/externals
 

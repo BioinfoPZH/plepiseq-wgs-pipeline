@@ -1568,7 +1568,7 @@ process run_metaphlan_illumina {
   container  = params.main_image
   containerOptions "--volume ${params.db_absolute_path_on_host}:/db"
   cpus { params.threads > 15 ? 15 : params.threads }
-  memory '30 GB'
+  memory '40 GB'
   time "40m"
   input:
   tuple val(x), path(reads), val(QC_STATUS), val(TOTAL_BASES)
@@ -1584,23 +1584,23 @@ process run_metaphlan_illumina {
     touch report_metaphlan_species.txt
     touch report_metaphlan_genera.txt
   else
-    metaphlan ${reads[0]},${reads[1]} --bowtie2out metagenome.bowtie2.bz2 --nproc ${task.cpus} --input_type fastq -o profiled_metagenome.txt --bowtie2db /db/metaphlan/ --unclassified_estimation
+    metaphlan ${reads[0]},${reads[1]} --mapout metagenome.bowtie2.bz2 --nproc ${task.cpus} --input_type fastq -o profiled_metagenome.txt --db_dir /db/metaphlan/ 
     # Parsujemy wyniki
-    metaphlan metagenome.bowtie2.bz2 --input_type bowtie2out --bowtie2db /db/metaphlan/  --nproc ${task.cpus} --tax_lev 't' -o report_metaphlan_SGB.txt
-    metaphlan metagenome.bowtie2.bz2 --input_type bowtie2out --bowtie2db /db/metaphlan/  --nproc ${task.cpus} --tax_lev 's' -o report_metaphlan_species.txt
-    metaphlan metagenome.bowtie2.bz2 --input_type bowtie2out --bowtie2db /db/metaphlan/  --nproc ${task.cpus} --tax_lev 'g' -o report_metaphlan_genera.txt
+    metaphlan metagenome.bowtie2.bz2 --input_type mapout --db_dir /db/metaphlan/  --nproc ${task.cpus} --tax_lev 't' -o report_metaphlan_SGB.txt
+    metaphlan metagenome.bowtie2.bz2 --input_type mapout --db_dir /db/metaphlan/  --nproc ${task.cpus} --tax_lev 's' -o report_metaphlan_species.txt
+    metaphlan metagenome.bowtie2.bz2 --input_type mapout --db_dir /db/metaphlan/  --nproc ${task.cpus} --tax_lev 'g' -o report_metaphlan_genera.txt
   fi
   """
 }
 
-process run_kmerfinder_illumina {
+process run_speciesfinder_illumina {
   // This module unlike krakern and metaphlan will pass QC_STATUS and TOTAL_BASES to get_species_illumina
   tag "kmerfinder:${x}"
   container  = params.main_image
   containerOptions "--volume ${params.db_absolute_path_on_host}:/db"
   cpus 1
-  memory '20 GB'
-  time "5m"
+  memory '30 GB'
+  time "10m"
 
   input:
   tuple val(x), path(reads), val(QC_STATUS), val(TOTAL_BASES)
@@ -1617,12 +1617,14 @@ process run_kmerfinder_illumina {
     SPECIES=""
     GENUS=""
   else
-    /opt/docker/kmerfinder/kmerfinder.py -i ${reads[0]} ${reads[1]} -o ./kmerfider_out -db /db/kmerfinder/bacteria/bacteria.ATG -tax /db/kmerfinder/bacteria/bacteria.tax -x -kp /opt/docker/kma/
-    cp kmerfider_out/results.spa .
+    DB_PRFIX=\$(basename /db/speciesfinder/bacteria/*tax | cut -d "." -f1)
+    python -m speciesfinder -i ${reads[0]} ${reads[1]} -o ./kmerfider_out -db /db/speciesfinder/bacteria/\${DB_PRFIX} -x -tax /db/speciesfinder/bacteria/\${DB_PRFIX}.tax
+
+    cp kmerfider_out/results.res results.spa
     cp kmerfider_out/results.txt .
   
-    SPECIES=`python /data/parse_kmerfinder.py kmerfider_out/data.json species`
-    GENUS=`python /data/parse_kmerfinder.py kmerfider_out/data.json genus`
+    SPECIES=`python /data/parse_speciesfinder.py kmerfider_out/data.json species`
+    GENUS=`python /data/parse_speciesfinder.py kmerfider_out/data.json genus`
   fi
   """
 }
@@ -2811,7 +2813,15 @@ else
   QC_status_contaminations="tak"
   PRE_FINALE_SPECIES=""
   cat report_kraken2.txt | grep -w "S" | sort -rnk1 | head -1 | awk '{print \$6,\$7}' >> intermediate.txt
-  cat report_metaphlan_species.txt  | grep -v "#" | sort -rnk3 | head -1 | awk '{print \$1}' | sed s'/s__//'g | sed s'/_/ /'g >> intermediate.txt
+  grep -v '^#' report_metaphlan_species.txt \
+  | awk '\$1!="UNCLASSIFIED"{print \$1"\\t"\$3}' \
+  | sort -rnk2 \
+  | head -1 \
+  | awk '{
+    sub(/.*\\|/, "", \$1)   
+    sub(/^s__/, "", \$1)   
+    gsub(/_/, " ", \$1)
+    print \$1}' >> intermediate.txt
   echo ${KMERFINDER_SPECIES} | cut -d ' ' -f1-2 >> intermediate.txt
 
   KRAKEN_GENUS_LEVEL=`cat report_kraken2.txt | grep -w "S" | sort -rnk1 | head -1 | awk '{print int(\$1)}'`
@@ -2839,7 +2849,7 @@ else
     echo -e "{\\"pathogen_predicted_genus\\":\\"\${FINAL_GENUS}\\",
             \\"pathogen_predicted_species\\":\\"\${FINALE_SPECIES}\\"}" >> Genus_species.json
   else
-    PRE_FINALE_SPECIES=`cat intermediate.txt | sort | uniq -c | tr -s " " | sort -rnk1 | head -1 | cut -d " " -f3,4`
+    PRE_FINALE_SPECIES=`cat intermediate.txt | sed -E 's/[[:space:]]+\$//' | sort | uniq -c | tr -s " " | sort -rnk1 | head -1 | cut -d " " -f3,4`
 
     if [[ "\${PRE_FINALE_SPECIES}" == *"Salmonel"* ]]; then
       FINALE_SPECIES="\${PRE_FINALE_SPECIES}"
@@ -2889,11 +2899,23 @@ else
     fi
 
     cat report_kraken2.txt | grep -w "G" | sort -rnk1 | head -1 | awk '{print \$6,\$7}'  >> intermediate_genus.txt
-    cat report_metaphlan_genera.txt  | grep -v "#" | sort -rnk3 | head -1 | awk '{print \$1" "}' | sed s'/g__//'g | sed s'/_/ /'g >> intermediate_genus.txt
+    # cat report_metaphlan_genera.txt  | grep -v "#" | sort -rnk3 | head -1 | awk '{print \$1" "}' | sed s'/g__//'g | sed s'/_/ /'g >> intermediate_genus.txt
+    
+    grep -v '^#' report_metaphlan_genera.txt \
+    | awk '\$1!="UNCLASSIFIED"{print \$1"\\t"\$3}' \
+    | sort -rnk2 \
+    | head -1 \
+    | awk '{
+    sub(/.*\\|/, "", \$1)   
+    sub(/^g__/, "", \$1)   
+    sub(/_/, " ", \$1)   
+    gsub(/_/, " ", \$1)
+    print \$1}' >> intermediate_genus.txt
+
     echo -e "${KMERFINDER_GENUS} " >> intermediate_genus.txt
 
     #Ecoli and Schigella are the same thing
-    FINAL_GENUS=`cat intermediate_genus.txt | sed s'/Shigella/Escherichia/'g | sort | uniq -c | tr -s " " | sort -rnk1 | head -1 | cut -d " " -f3`
+    FINAL_GENUS=`cat intermediate_genus.txt | sed s'/Shigella/Escherichia/'g | sed -E 's/[[:space:]]+\$//'  | sort | uniq -c | tr -s " " | sort -rnk1 | head -1 | cut -d " " -f3`
     echo -e "Final genus:\t\${FINAL_GENUS}\nFinal species:\t\${FINALE_SPECIES}" >> predicted_genus_and_species.txt
 
     echo -e "{\\"pathogen_predicted_genus\\":\\"\${FINAL_GENUS}\\",
@@ -3365,13 +3387,13 @@ process run_kraken2_nanopore {
   """
 }
 
-process run_kmerfinder_nanopore {
+process run_speciesfinder_nanopore {
   tag "kmerfinder:${x}"
   container  = params.main_image
   containerOptions "--volume ${params.db_absolute_path_on_host}:/db"
   cpus 1
-  memory '20 GB'
-  time "5m"
+  memory '30 GB'
+  time "10m"
   input:
   tuple val(x), path(reads), val(QC_STATUS), val(TOTAL_BASES)
 
@@ -3387,12 +3409,14 @@ process run_kmerfinder_nanopore {
     SPECIES=""
     GENUS=""
   else
-    /opt/docker/kmerfinder/kmerfinder.py -i $reads -o ./kmerfider_out -db /db/kmerfinder/bacteria/bacteria.ATG -tax /db/kmerfinder/bacteria/bacteria.tax -x -kp /opt/docker/kma/
-    cp kmerfider_out/results.spa .
+    DB_PRFIX=\$(basename /db/speciesfinder/bacteria/*tax | cut -d "." -f1)
+    python -m speciesfinder -i ${reads} -o ./kmerfider_out -db /db/speciesfinder/bacteria/\${DB_PRFIX} -x -tax /db/speciesfinder/bacteria/\${DB_PRFIX}.tax
+
+    cp kmerfider_out/results.res results.spa
     cp kmerfider_out/results.txt .
   
-    SPECIES=`python /data/parse_kmerfinder.py kmerfider_out/data.json species`
-    GENUS=`python /data/parse_kmerfinder.py kmerfider_out/data.json genus`
+    SPECIES=`python /data/parse_speciesfinder.py kmerfider_out/data.json species`
+    GENUS=`python /data/parse_speciesfinder.py kmerfider_out/data.json genus`
   fi
   """
 }
@@ -3595,7 +3619,7 @@ initial_fastq_and_status = initial_fastq.join(inital_qc_status, by : 0, remainde
 kraken2_out = run_kraken2_nanopore(initial_fastq_and_status)
 
 // Kmerfinder
-kmerfinder_out = run_kmerfinder_nanopore(initial_fastq_and_status)
+kmerfinder_out = run_speciesfinder_nanopore(initial_fastq_and_status)
 
 programs_out = kraken2_out.join(kmerfinder_out,  by : 0, remainder : true)
 final_species = get_species_nanopore(programs_out)
@@ -3765,7 +3789,7 @@ kraken2_out = run_kraken2_illumina(initial_fastq_and_status)
 metaphlan_out = run_metaphlan_illumina(initial_fastq_and_status)
 
 // Kmerfinder
-kmerfinder_out = run_kmerfinder_illumina(initial_fastq_and_status)
+kmerfinder_out = run_speciesfinder_illumina(initial_fastq_and_status)
 
 merge1 = metaphlan_out.join(kmerfinder_out, by : 0, remainder : true)
 programs_out = kraken2_out.join(merge1,  by : 0, remainder : true)
