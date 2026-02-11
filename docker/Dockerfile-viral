@@ -31,7 +31,8 @@ ARG CERT_FILE
 
 ENV LANG=en_US.UTF-8
 ENV VIRTUAL_ENV=/opt/venv
-ENV PATH=/$VIRTUAL_ENV/bin:$PATH:usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+# ENV PATH=/$VIRTUAL_ENV/bin:$PATH:usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ENV PATH="${VIRTUAL_ENV}/bin:${PATH}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
 # We install some basic tools, build tools and libraries
 RUN apt update && \
@@ -63,7 +64,8 @@ RUN apt update && \
                                               tree \
                                               unzip \
                                               vim \
-                                              zlib1g-dev
+                                              zlib1g-dev \
+                                              libdatrie1
 
 # If you are in corporate network that replaces your TLS Certificate then you need to build your container like this:
 # docker build --build-arg CERT_FILE="$(cat corporate-cert.pem)" -t myimage .
@@ -197,7 +199,12 @@ ADD third-party/snpEff.tar.gz /opt
 FROM builder-base AS builder-python
 ARG PANGOLIN_VERSION
 COPY requirements.txt /
-RUN pip install -r /requirements.txt
+RUN set -eux; \
+    python3 -m pip install --no-cache-dir -U pip wheel "setuptools<81" Cython; \
+    python3 -m pip install --no-cache-dir --no-build-isolation -r /requirements.txt; \
+    python3 -m pip install --no-cache-dir --no-deps \
+      "git+https://github.com/andersen-lab/Freyja.git@311b7f9"
+
 WORKDIR /downloads
 RUN curl -fsSL https://github.com/cov-lineages/pangolin/archive/refs/tags/v${PANGOLIN_VERSION}.tar.gz -o v${PANGOLIN_VERSION}.tar.gz && \
     tar -zxvf v${PANGOLIN_VERSION}.tar.gz && \

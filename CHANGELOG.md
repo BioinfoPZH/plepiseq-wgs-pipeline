@@ -1,6 +1,17 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.5.1] - 2026-02-11
+
+### Fixed
+- Fixed Python virtualenv `PATH` in viral Dockerfile (removed double-slash `//opt/venv` paths) to prevent pip install failures.
+
+### Changed
+- Viral image: pin Python packaging toolchain for build reproducibility (`setuptools<81`) and add `Cython` to support building Python extensions during `pip install`.
+- Viral image: install Freyja without dependencies (`--no-deps`) to avoid upstream dependency resolution/build issues.
+- Viral image: add `libdatrie1` to support Snakemake/`datrie` runtime requirements.
+
+
 ## [1.5.0] - 2026-02-11
 ### Changed
 - Update `Dockerfile-bacterial` base to Ubuntu 22.04/CUDA 12.1 and Python 3.10

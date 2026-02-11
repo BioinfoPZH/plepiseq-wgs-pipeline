@@ -1,5 +1,6 @@
 # Pangolin dependencies
 
+numpy<2
 biopython==1.81
 pandas==2.1.3
 wheel
@@ -23,7 +24,7 @@ scipy==1.12.0
 iranges==0.2.3
 
 # Freya
-git+https://github.com/andersen-lab/Freyja.git@311b7f9
+#git+https://github.com/andersen-lab/Freyja.git@311b7f9
 tqdm==4.66.2
 plotly==5.20.0
 
