@@ -120,6 +120,16 @@ update_kmerfinder() {
     python3  /home/update/download_kmerfinder_db.py -o /home/external_databases/kmerfinder/
 }
 
+# SpeciesFinder DB (tarball download + extract; always rebuild)
+update_speciesfinder() {
+    python3 -u /home/update/download_speciesfinder_db.py --workspace "${UPDATER_WORKSPACE}" \
+                                                         --container_image "${UPDATER_CONTAINER_IMAGE}" \
+                                                         --user "${UPDATER_USER}" \
+                                                         --host "${UPDATER_HOST}" \
+                                                         --output_dir /home/external_databases/speciesfinder
+    return $?
+}
+
 # CGE databases (genomicepidemiology) are updated via a milestone-based python client
 # that uses remote HEAD commit id for update decisions.
 update_cge_db() {
@@ -539,6 +549,8 @@ if [ ${db_name} == "all" ];then
 	update_cge_db resfinder_db >> /dev/null 2>&1
 	echo "Downloading data for spifinder at: $(date +"%H:%M %d-%m-%Y")"
 	update_cge_db spifinder_db >> /dev/null 2>&1
+	echo "Downloading data for speciesfinder at: $(date +"%H:%M %d-%m-%Y")"
+	update_speciesfinder >> /dev/null 2>&1
 	echo "Downloading data for virulencefinder at: $(date +"%H:%M %d-%m-%Y")"
 	update_cge_db virulencefinder_db >> /dev/null 2>&1
 	echo "Downloading data for vfcb at: $(date +"%H:%M %d-%m-%Y")"
@@ -581,6 +593,8 @@ elif [ ${db_name} == "resfinder" ]; then
         update_cge_db resfinder_db >> /dev/null 2>&1
 elif [ ${db_name} == "spifinder" ]; then
         update_cge_db spifinder_db >> /dev/null 2>&1
+elif [ ${db_name} == "speciesfinder" ]; then
+        update_speciesfinder >> /dev/null 2>&1
 elif [ ${db_name} == "virulencefinder" ]; then
         update_cge_db virulencefinder_db >> /dev/null 2>&1
 elif [ ${db_name} == "vfdb" ]; then

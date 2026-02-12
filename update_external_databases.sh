@@ -30,7 +30,7 @@ function show_help() {
     echo "                  Nazwa bazy do pobrania/aktualizacji. Mozliwe opcje to:"
     echo "                  amrfinder_plus mlst cgmlst disinfinder resfinder vfdb enterobase"
     echo "                  kmerfinder metaphlan phiercc pubmlst pointfinder plasmidfinder virulencefinder"
-    echo "                  spifinder mlstfinder pangolin nextclade kraken2 freyja alphafold all"
+    echo "                  spifinder speciesfinder mlstfinder pangolin nextclade kraken2 freyja alphafold all"
     echo "  --output        Path to save the downloaded database. Each database is placed in a separete subdirectory"
     echo "                  Sciezka do katalogu z bazami, dla kazdej bazy zostanie stworzony wlasny podkatalog "
     echo "  --image_name    Full name of the docker image (with tag) used for updates"
@@ -106,7 +106,7 @@ done
 
 # Check if a user provided a correct database to download/update
 CORRECT_DB=0
-ALL_DB=(amrfinder_plus mlst cgmlst cgmlstfinder, disinfinder resfinder vfdb enterobase kmerfinder metaphlan phiercc pubmlst pointfinder plasmidfinder virulencefinder spifinder mlstfinder pangolin nextclade kraken2 freyja alphafold all)
+ALL_DB=(amrfinder_plus mlst cgmlst cgmlstfinder, disinfinder resfinder vfdb enterobase kmerfinder metaphlan phiercc pubmlst pointfinder plasmidfinder virulencefinder spifinder speciesfinder mlstfinder pangolin nextclade kraken2 freyja alphafold all)
 for var in ${ALL_DB[@]}; do
     if [ ${database} == ${var} ];then
            CORRECT_DB=1
