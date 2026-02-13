@@ -58,9 +58,7 @@ update_pangolin() {
 # Kraken2
 update_kraken2() {
     local kraken2_type=$1
-    if [ ! -d "/home/external_databases/kraken2" ]; then
-	    mkdir /home/external_databases/kraken2
-    fi
+
 
     python3 -u /home/update/download_kraken.py --local_path /home/external_databases/kraken2 \
                                                --db_name "${kraken2_type}" \
@@ -89,9 +87,7 @@ update_freyja() {
 ## if local and remote versions of the database are different the script will remove content of output_dir and download 
 ## all the files 
 update_amrfinder() {
-	if [ ! -d "/home/external_databases/amrfinder_plus" ]; then
-		 mkdir /home/external_databases/amrfinder_plus
-	fi
+
         python3 -u /home/update/download_amrfinder.py --workspace "${UPDATER_WORKSPACE}" \
                                                       --container_image "${UPDATER_CONTAINER_IMAGE}" \
                                                       --user "${UPDATER_USER}" \
@@ -409,43 +405,68 @@ update_cgmlst() {
 	fi
 }
 
-# Downloading data regarding known strains from enterobase
-## There is an update mechanism so we do not remove files
+# Downloading data regarding known strains from enterobase, there is no update, but new data are appended to existing files
 update_enterobase() {
 	local genus=${1}
+	local limit_first_n="" # set to some number to limit number of downloaded entrie
+                               # this is usefull only for manual test of a script and should be left empty on production runs
+	local limit_args=()
+	if [ -n "${limit_first_n}" ]; then
+		limit_args=(--limit_first_n "${limit_first_n}")
+	fi
 
 	if [ ${genus} == "Escherichia" ]; then
-                if [ ! -d "/home/external_databases/enterobase/Escherichia" ]; then
-			mkdir -p /home/external_databases/enterobase/Escherichia
-                fi
-		cd /home/external_databases/enterobase/Escherichia
+
 		DATABASE="ecoli" 
 		CGNAME="cgMLST" 
-		python3 -u /home/update/download_enterobase_data.py "${DATABASE}" "${CGNAME}" >> log 2>&1
+		python3 -u /home/update/download_enterobase_data.py --database "${DATABASE}" \
+								    --cgname "${CGNAME}" \
+								    --api_token_file /home/update/enterobase_api.txt \
+								    --output_dir /home/external_databases/enterobase/Escherichia \
+								    --workspace "${UPDATER_WORKSPACE}" \
+								    --container_image "${UPDATER_CONTAINER_IMAGE}" \
+								    --user "${UPDATER_USER}" \
+								    --host "${UPDATER_HOST}" \
+								    "${limit_args[@]}"
         elif [ ${genus} == "Salmonella" ]; then
-		if [ ! -d "/home/external_databases/enterobase/Salmonella" ]; then
-                        mkdir -p /home/external_databases/enterobase/Salmonella
-                fi
-                cd /home/external_databases/enterobase/Salmonella
+
 		DATABASE="senterica" 
 		CGNAME="cgMLST_v2" 
-		python3 -u /home/update/download_enterobase_data.py "${DATABASE}" "${CGNAME}" >> log 2>&1
+		python3 -u /home/update/download_enterobase_data.py --database "${DATABASE}" \
+								    --cgname "${CGNAME}" \
+								    --api_token_file /home/update/enterobase_api.txt \
+								    --output_dir /home/external_databases/enterobase/Salmonella \
+								    --workspace "${UPDATER_WORKSPACE}" \
+								    --container_image "${UPDATER_CONTAINER_IMAGE}" \
+								    --user "${UPDATER_USER}" \
+								    --host "${UPDATER_HOST}" \
+								    "${limit_args[@]}"
 	elif [[ ${genus} == "all" || ${genus} == "Campylobacter" ]]; then
-		if [ ! -d "/home/external_databases/enterobase/Escherichia" ]; then
-                        mkdir -p /home/external_databases/enterobase/Escherichia
-                fi
-                cd /home/external_databases/enterobase/Escherichia
+
                 DATABASE="ecoli"
                 CGNAME="cgMLST"
-                python3 -u /home/update/download_enterobase_data.py "${DATABASE}" "${CGNAME}" >> log 2>&1
+                python3 -u /home/update/download_enterobase_data.py --database "${DATABASE}" \
+                                                                    --cgname "${CGNAME}" \
+                                                                    --api_token_file /home/update/enterobase_api.txt \
+                                                                    --output_dir /home/external_databases/enterobase/Escherichia \
+                                                                    --workspace "${UPDATER_WORKSPACE}" \
+                                                                    --container_image "${UPDATER_CONTAINER_IMAGE}" \
+                                                                    --user "${UPDATER_USER}" \
+                                                                    --host "${UPDATER_HOST}" \
+                                                                    "${limit_args[@]}"
 
-		if [ ! -d "/home/external_databases/enterobase/Salmonella" ]; then
-                        mkdir -p /home/external_databases/enterobase/Salmonella
-                fi
-                cd /home/external_databases/enterobase/Salmonella
+
                 DATABASE="senterica"
                 CGNAME="cgMLST_v2"
-                python3 -u /home/update/download_enterobase_data.py "${DATABASE}" "${CGNAME}" >> log 2>&1
+                python3 -u /home/update/download_enterobase_data.py --database "${DATABASE}" \
+                                                                    --cgname "${CGNAME}" \
+                                                                    --api_token_file /home/update/enterobase_api.txt \
+                                                                    --output_dir /home/external_databases/enterobase/Salmonella \
+                                                                    --workspace "${UPDATER_WORKSPACE}" \
+                                                                    --container_image "${UPDATER_CONTAINER_IMAGE}" \
+                                                                    --user "${UPDATER_USER}" \
+                                                                    --host "${UPDATER_HOST}" \
+                                                                    "${limit_args[@]}"
 	fi
 
 }
@@ -606,7 +627,7 @@ elif [ ${db_name} == "cgmlst" ]; then
 elif [ ${db_name} == "pubmlst" ]; then
 	update_pubmlst ${cpus} >> /dev/null 2>&1
 elif [ ${db_name} == "enterobase" ]; then
-	update_enterobase ${genus}
+	update_enterobase ${genus} >> /dev/null 2>&1
 elif [ ${db_name} == "phiercc" ]; then
 	update_phiercc ${genus} >> /dev/null 2>&1
 elif [ ${db_name} == "alphafold" ]; then
