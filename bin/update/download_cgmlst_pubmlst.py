@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import click
+from requests_oauthlib import OAuth1
 
 from utils.blast_helpers import run_makeblastdb
 from utils.download_helpers import _download_file_with_retry
@@ -56,7 +57,7 @@ def _parse_kv_file(path: Path) -> Dict[str, str]:
 
 def _maybe_oauth_auth(*, oauth_credentials_file: Optional[Path], logger):
     """
-    Return a `requests`-compatible auth object if requests_oauthlib is available and creds provided.
+    Return a `requests`-compatible OAuth1 auth object if credentials are provided.
 
     Supports two-legged OAuth1 (client_id/client_secret) and optionally access token/secret.
     Returns None if not configured.
@@ -77,12 +78,6 @@ def _maybe_oauth_auth(*, oauth_credentials_file: Optional[Path], logger):
             return None
     except Exception as e:
         logger.warning("Failed to parse OAuth credentials file (%s): %s; proceeding unauthenticated.", oauth_credentials_file, e)
-        return None
-
-    try:
-        from requests_oauthlib import OAuth1  # type: ignore
-    except Exception:
-        logger.warning("requests_oauthlib not available in image; proceeding unauthenticated.")
         return None
 
     if access_token and access_token_secret:

@@ -22,22 +22,7 @@ from utils.setup_logging import _setup_logging
 from utils.updates_helpers import file_md5sum
 from utils.validation import get_timestamp, verify_expected_files
 
-try:
-    from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
-
-    HAS_PYDANTIC = True
-except Exception:
-    HAS_PYDANTIC = False
-    BaseModel = object  # type: ignore[assignment]
-    ConfigDict = dict  # type: ignore[assignment]
-    ValidationError = Exception  # type: ignore[assignment]
-
-    def field_validator(*_args, **_kwargs):  # type: ignore[no-redef]
-        def _decorator(func):
-            return func
-
-        return _decorator
-
+from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
 
 DATABASE = {"name": "enterobase_historical_data", "category": "typing"}
 SOURCE = {
@@ -48,20 +33,19 @@ SOURCE = {
 }
 
 
-if HAS_PYDANTIC:
+class STSchemeModel(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    st_id: int
 
-    class STSchemeModel(BaseModel):
-        model_config = ConfigDict(extra="allow")
-        st_id: int
+    @field_validator("st_id", mode="before")
+    @classmethod
+    def _coerce_st_id(cls, v: Any) -> int:
+        return int(v)
 
-        @field_validator("st_id", mode="before")
-        @classmethod
-        def _coerce_st_id(cls, v: Any) -> int:
-            return int(v)
 
-    class StrainDataEntryModel(BaseModel):
-        model_config = ConfigDict(extra="allow")
-        sts: List[STSchemeModel] = []
+class StrainDataEntryModel(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    sts: List[STSchemeModel] = []
 
 
 def _basic_auth_tuple(api_token: str) -> Tuple[str, str]:
@@ -195,10 +179,8 @@ def _extract_st_ids_for_scheme(*, straindata: Dict[str, Dict[str, Any]], cgname:
 
 
 def _validate_straindata_entry(value: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
-    if not HAS_PYDANTIC:
-        return True, None
     try:
-        StrainDataEntryModel.model_validate(value)  # type: ignore[attr-defined]
+        StrainDataEntryModel.model_validate(value)
         return True, None
     except ValidationError as e:
         return False, str(e)
@@ -742,7 +724,7 @@ def main(
             "novel_st_ids_to_download": len(missing_st_ids),
             "local_existing_strains": len(existing_barcodes),
             "local_existing_sts": len(existing_sts_data),
-            "pydantic_enabled": HAS_PYDANTIC,
+            "pydantic_enabled": True,
             "selection_policy": "stable_first_n",
             "straindata": straindata_metrics,
             "sts": sts_metrics,
