@@ -19,11 +19,12 @@ genus="all" #  name of the genus for which database is updated, only valid if ml
 output=""  #  top-level directory with databases, each database will be a subdirectory of it, hierarchy of databases in that directory is PREDEFINED
 image_name="plepiseq-wgs-pipeline-updater:latest" #  name of the image within which all updates are performed
 cpus=1
+limit_first_n="" # optional: limit number of records downloaded (for enterobase and pubmlst testing)
 pubmlst_oauth_file="" # optional path to PubMLST OAuth credentials file on host
 
 # Function to display help message
 function show_help() {
-    echo "Usage: $0 --database <string> --output <path> --image_name <string> [--cpus <int> --kraken-type <type> --genus <Salmonella|Escherichia|Campylobacter|all> --pubmlst_oauth_file <path>]"
+    echo "Usage: $0 --database <string> --output <path> --image_name <string> [--cpus <int> --kraken-type <type> --genus <Salmonella|Escherichia|Campylobacter|all> --limit_first_n <int> --pubmlst_oauth_file <path>]"
     echo
     echo "Options:"
     echo "  --database      Name of the database to download or update"
@@ -43,10 +44,16 @@ function show_help() {
     echo "  --genus         Name of a genus (valid only for mlst, cgmlst, and enterobase databases). If not provided database is downloaded for all three genuses"
     echo "                  Nazwa rodzaju bakterii dla ktorego pobierana jest baza (tylko w przypadku baz mlst, cgmls oraz enterobase). Mozliwe wartosci to:"
     echo "                  Salmonella Escherichia Campylobacter all"
+    echo "  --limit_first_n  Optional: limit number of records downloaded per data source (valid for enterobase and pubmlst)."
+    echo "                   Useful for testing without downloading the full dataset."
+    echo "                   For pubmlst: timestamp is NOT advanced when limit truncates records, so remaining"
+    echo "                   records will still be available on the next run. Remove the limit for a full sync."
+    echo "                   For enterobase: only first N strains from remote list are considered; re-run without"
+    echo "                   the limit to pick up the rest."
     echo "  --pubmlst_oauth_file  Optional path to PubMLST OAuth credentials file on host; will be mounted read-only into container"
 }
 
-OPTIONS=$(getopt -o h --long database:,output:,cpus:,image_name:,kraken_type:,genus:,pubmlst_oauth_file:,help -- "$@")
+OPTIONS=$(getopt -o h --long database:,output:,cpus:,image_name:,kraken_type:,genus:,limit_first_n:,pubmlst_oauth_file:,help -- "$@")
 
 eval set -- "$OPTIONS"
 
@@ -81,6 +88,10 @@ while true; do
             ;;        
         --genus)
             genus="$2"
+            shift 2
+            ;;
+        --limit_first_n)
+            limit_first_n="$2"
             shift 2
             ;;
         --pubmlst_oauth_file)
@@ -181,6 +192,15 @@ if [[ "$cpus" -le 0 || "$cpus" -gt "$(nproc)" ]]; then
        exit 1
 fi       
 
+## Validate limit_first_n if provided (must be a positive integer, only valid for enterobase and pubmlst)
+if [[ -n "$limit_first_n" ]]; then
+    if ! [[ "$limit_first_n" =~ ^[0-9]+$ ]]; then
+        echo "Error: --limit_first_n must be a positive integer."
+        show_help
+        exit 1
+    fi
+fi
+
 # Output the parsed arguments
 echo "Database: $database"
 echo "Output Path: $output"
@@ -188,6 +208,7 @@ echo "Docker image: ${image_name}"
 echo "Downloading all databases may take several hours"
 [[ "$database" == "kraken2" ]] && echo "Kraken Type: ${kraken_type}"
 [[ "$database" == "mlst"  ||  "$database" == "cgmlst" || "$database" == "enterobase" ]] && echo "Genus: ${genus}"
+[[ -n "$limit_first_n" ]] && echo "Limit first N records: ${limit_first_n}"
 [[ -n "$pubmlst_oauth_file" ]] && echo "PubMLST OAuth file: ${pubmlst_oauth_file}"
 
 EXTRA_VOLUMES=""
@@ -213,4 +234,4 @@ docker run --rm \
        -e UPDATER_USER="$(id -un)" \
        -e UPDATER_HOST="$(hostname)" \
        -e UPDATER_WORKSPACE="${output}" \
-       ${image_name} ${database} ${kraken_type} ${genus} ${cpus}
+       ${image_name} ${database} ${kraken_type} ${genus} ${cpus} ${limit_first_n}

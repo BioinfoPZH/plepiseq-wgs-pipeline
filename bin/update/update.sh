@@ -15,7 +15,8 @@
 
 # This script is intended as an updater for both "viral" and "bacterial" pipelines
 
-# This script understands 4 positional arguments (database name, type of kraken database, bacterial genus, number of cpus)
+# This script understands 5 positional arguments (database name, type of kraken database, bacterial genus, number of cpus, limit_first_n)
+# limit_first_n is optional and only used by enterobase and pubmlst downloaders for testing (empty = no limit)
 # This script should never be run directly but using a wrapper script update_external_databases.sh
 # All values passed to this script are evaluated by update_external_databases.sh
 
@@ -408,8 +409,8 @@ update_cgmlst() {
 # Downloading data regarding known strains from enterobase, there is no update, but new data are appended to existing files
 update_enterobase() {
 	local genus=${1}
-	local limit_first_n="" # set to some number to limit number of downloaded entrie
-                               # this is usefull only for manual test of a script and should be left empty on production runs
+	# limit_first_n comes from the 5th positional argument (set at script level)
+	# useful only for manual testing; empty on production runs
 	local limit_args=()
 	if [ -n "${limit_first_n}" ]; then
 		limit_args=(--limit_first_n "${limit_first_n}")
@@ -476,12 +477,23 @@ update_enterobase() {
 
 update_pubmlst() {
 	local cpus=${1}
-	if [ ! -d "/home/external_databases/pubmlst/Campylobacter/jejuni" ]; then
-		mkdir -p /home/external_databases/pubmlst/Campylobacter/jejuni
+	# limit_first_n comes from the 5th positional argument (set at script level)
+	# useful only for manual testing; empty on production runs
+	local limit_args=()
+	if [ -n "${limit_first_n}" ]; then
+		limit_args=(--limit_first_n "${limit_first_n}")
 	fi
-	cd /home/external_databases/pubmlst/Campylobacter/jejuni
-	python3 -u /home/update/download_pubmlst_data.py ${cpus} >> log 2>&1
 
+	python3 -u /home/update/download_pubmlst_data.py \
+		--output_dir /home/external_databases/pubmlst/Campylobacter/jejuni \
+		--download_workers ${cpus} \
+		--workspace "${UPDATER_WORKSPACE}" \
+		--container_image "${UPDATER_CONTAINER_IMAGE}" \
+		--user "${UPDATER_USER}" \
+		--host "${UPDATER_HOST}" \
+		--oauth_credentials_file /home/update/pubmlst_oauth.txt \
+		"${limit_args[@]}" \
+		>> /dev/null 2>&1
 }
 
 
@@ -518,6 +530,7 @@ db_name=$1
 kraken_type=$2
 genus=$3
 cpus=$4
+limit_first_n=${5:-}  # optional: limit records for enterobase/pubmlst (empty = no limit)
 
 # -------------------------
 # Metadata for Python clients
