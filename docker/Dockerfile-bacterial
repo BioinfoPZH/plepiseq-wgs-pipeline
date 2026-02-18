@@ -1,11 +1,13 @@
 ARG PIP_TIMEOUT=30
 ARG PIP_INDEX_URL=https://pypi.org/simple
+ARG PIP_TRUSTED_HOST
 
 FROM nvidia/cuda:12.1.0-cudnn8-runtime-ubuntu22.04
 LABEL maintainer "Michal Lazniewski <mlazniewski@pzh.gov.pl>"
 
 ARG PIP_TIMEOUT
 ARG PIP_INDEX_URL
+ARG PIP_TRUSTED_HOST
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV LANG=C.UTF-8 LC_ALL=C.UTF-8

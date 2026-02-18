@@ -1,5 +1,6 @@
 ARG PIP_TIMEOUT=30
 ARG PIP_INDEX_URL=https://pypi.org/simple
+ARG PIP_TRUSTED_HOST
 
 FROM centos:7.9.2009 AS builder-base
 
@@ -63,6 +64,7 @@ RUN make -j $(nproc) && make install
 FROM builder-base AS builder-python-packages
 ARG PIP_TIMEOUT
 ARG PIP_INDEX_URL
+ARG PIP_TRUSTED_HOST
 
 RUN curl https://bootstrap.pypa.io/pip/2.7/get-pip.py | python # Vide: https://stackoverflow.com/questions/16370583/pip-issue-installing-almost-any-library
 RUN pip install numpy==1.16.5 biopython==1.76

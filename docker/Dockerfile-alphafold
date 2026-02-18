@@ -15,6 +15,7 @@
 ARG CUDA=12.2.2
 ARG PIP_TIMEOUT=30
 ARG PIP_INDEX_URL=https://pypi.org/simple
+ARG PIP_TRUSTED_HOST
 
 FROM nvidia/cuda:${CUDA}-cudnn8-runtime-ubuntu20.04
 # FROM directive resets ARGS, so we specify again (the value is retained if
@@ -22,6 +23,7 @@ FROM nvidia/cuda:${CUDA}-cudnn8-runtime-ubuntu20.04
 ARG CUDA
 ARG PIP_TIMEOUT
 ARG PIP_INDEX_URL
+ARG PIP_TRUSTED_HOST
 
 # Use bash to support string substitution.
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]

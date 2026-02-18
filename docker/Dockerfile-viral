@@ -23,6 +23,7 @@ ARG CERT_FILE
 
 ARG PIP_TIMEOUT=30
 ARG PIP_INDEX_URL=https://pypi.org/simple
+ARG PIP_TRUSTED_HOST
 
 # This is multistage, parallel build. We first build a base image.
 # Then, in parallel, we build all the tools we need.
@@ -203,6 +204,7 @@ FROM builder-base AS builder-python
 ARG PANGOLIN_VERSION
 ARG PIP_TIMEOUT
 ARG PIP_INDEX_URL
+ARG PIP_TRUSTED_HOST
 COPY requirements.txt /
 RUN set -eux; \
     python3 -m pip install --no-cache-dir -U pip wheel "setuptools<81" Cython; \
@@ -524,6 +526,7 @@ FROM python:3.8-slim-bookworm AS updater
 ARG CERT_FILE
 ARG PIP_TIMEOUT
 ARG PIP_INDEX_URL
+ARG PIP_TRUSTED_HOST
 
 LABEL maintainer="Michal Lazniewski <mlazniewski@pzh.gov.pl>"
 LABEL maintainer="Michał Kadlof <mkadlof@pzh.gov.pl>"
