@@ -1,5 +1,11 @@
+ARG PIP_TIMEOUT=30
+ARG PIP_INDEX_URL=https://pypi.org/simple
+
 FROM nvidia/cuda:12.1.0-cudnn8-runtime-ubuntu22.04
 LABEL maintainer "Michal Lazniewski <mlazniewski@pzh.gov.pl>"
+
+ARG PIP_TIMEOUT
+ARG PIP_INDEX_URL
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
@@ -8,12 +14,9 @@ RUN apt-get update --fix-missing && apt upgrade -y && \
     apt-get install build-essential pkgconf python3.10 python3-pip default-jre curl unzip wget vim bc htop git gcc zlib1g-dev libbz2-dev libcurl4-gnutls-dev libssl-dev liblzma-dev python3-pycurl screen iqtree mash seqtk -y
 
 
-RUN pip install ete3 numba numpy==1.23.4 biopython==1.73 psutil pysam 'cgecore>=1.5.5,<2.0' packaging tables==3.7.0 h5py xlrd 
+RUN pip install ete3 numba numpy==1.23.4 biopython==1.73 psutil pysam 'cgecore>=1.5.5,<2.0' packaging tables==3.7.0 h5py xlrd scikit-learn fiona==1.9.6 geodatasets geopandas plotly
 ### xlrd - allows to read excels, need that for VFDB
-### Not sure why I choose these version of some libraries  
-
-RUN pip install scikit-learn 
-RUN pip install fiona==1.9.6 geodatasets geopandas plotly
+### Not sure why I choose these version of some libraries
 
 WORKDIR /usr/bin
 RUN ln -s python3 python
@@ -146,8 +149,7 @@ RUN git clone https://github.com/fenderglass/Flye ;\
 
 # Medaka
 
-RUN pip install urllib3==1.26.16 pysam==0.21.0 parasail==1.3.4 ;\
-    pip install pyabpoa==1.4.0 ;\
+RUN pip install urllib3==1.26.16 pysam==0.21.0 parasail==1.3.4 pyabpoa==1.4.0 ;\
     apt update ;\
     apt install python3.10-venv libncurses5-dev -y
 

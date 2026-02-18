@@ -13,10 +13,15 @@
 # limitations under the License.
 
 ARG CUDA=12.2.2
+ARG PIP_TIMEOUT=30
+ARG PIP_INDEX_URL=https://pypi.org/simple
+
 FROM nvidia/cuda:${CUDA}-cudnn8-runtime-ubuntu20.04
 # FROM directive resets ARGS, so we specify again (the value is retained if
 # previously set).
 ARG CUDA
+ARG PIP_TIMEOUT
+ARG PIP_INDEX_URL
 
 # Use bash to support string substitution.
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
