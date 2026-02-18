@@ -8,9 +8,9 @@ joblib==1.3.2
 scikit-learn==1.3.2
 PuLP==2.7.0
 snakemake==7.32.4
-git+https://github.com/cov-lineages/pangolin-data.git@73254f75d2d07f5459b6526bfb11f86d24e479bd
-git+https://github.com/cov-lineages/scorpio.git@5ce2e35ff4681d32761e6f1346d7297985bb1186
-git+https://github.com/cov-lineages/constellations.git@f2d5a096a744d444b1dd42509714f1768c5e0ef5
+# git+https://github.com/cov-lineages/pangolin-data.git@73254f75d2d07f5459b6526bfb11f86d24e479bd
+# git+https://github.com/cov-lineages/scorpio.git@5ce2e35ff4681d32761e6f1346d7297985bb1186
+# git+https://github.com/cov-lineages/constellations.git@f2d5a096a744d444b1dd42509714f1768c5e0ef5
 
 # SARS own scripts dependencies
 pysam==0.22.0

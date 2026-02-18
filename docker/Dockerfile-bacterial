@@ -3,7 +3,7 @@ ARG PIP_INDEX_URL=https://pypi.org/simple
 ARG PIP_TRUSTED_HOST
 
 FROM nvidia/cuda:12.1.0-cudnn8-runtime-ubuntu22.04
-LABEL maintainer "Michal Lazniewski <mlazniewski@pzh.gov.pl>"
+LABEL maintainer="Michal Lazniewski <mlazniewski@pzh.gov.pl>"
 
 ARG PIP_TIMEOUT
 ARG PIP_INDEX_URL
@@ -83,7 +83,7 @@ RUN wget https://mafft.cbrc.jp/alignment/software/mafft-7.505-with-extensions-sr
 RUN git clone https://bitbucket.org/genomicepidemiology/kma.git; cd kma ; make; cd /opt/docker
 
 ### Most are just python scripts
-ENV VIRULENCEFINDER_VERSION 2.0.5
+ENV VIRULENCEFINDER_VERSION=2.0.5
 
 ### Plasmidfinder version is pinned to commit from 	2023-08-16, must be updated eventually
 	
