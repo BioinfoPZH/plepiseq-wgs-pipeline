@@ -156,13 +156,22 @@ RUN pip install urllib3==1.26.16 pysam==0.21.0 parasail==1.3.4 pyabpoa==1.4.0 ;\
     apt install python3.10-venv libncurses5-dev -y
 
 # Medaka bacterial pipelien use it, but pipeline should be migrated to use the same image viral pipeline is currently using
-RUN curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash
-RUN apt install git-lfs ;\
-    git lfs install ;\
-    git clone https://github.com/nanoporetech/medaka.git ;\
+# Pin medaka to version 2.0.1
+
+RUN python3 -m pip install --no-cache-dir -U pip wheel "setuptools<81" Cython
+RUN apt install -y git-lfs file ;\
+    git lfs install ;\ 
+    git clone https://github.com/nanoporetech/medaka.git /opt/docker/medaka ;\
     cd /opt/docker/medaka ;\
+    git reset --hard 03b5848 ;\
+    sed -i 's/pip install pip wheel setuptools --upgrade/pip install -U pip wheel "setuptools<81"/g' Makefile ;\
+    sed -i 's/--upgrade pip setuptools/--upgrade pip "setuptools<81"/g' Makefile ;\
+    sed -i -E 's/(pip3 install)[[:space:]]+\./\1 --no-build-isolation ./g' Makefile ;\
+    sed -i -E 's/(pip install)[[:space:]]+-e[[:space:]]+\./\1 --no-build-isolation -e ./g' Makefile ;\
+    sed -i -E 's/(pip install)[[:space:]]+\./\1 --no-build-isolation ./g' Makefile ;\
     make install_root ;\
     cd /opt/docker
+
 
 
 # FASTQC
