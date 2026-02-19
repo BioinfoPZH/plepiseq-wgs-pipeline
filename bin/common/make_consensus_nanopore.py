@@ -34,7 +34,7 @@ def align_fasta(fasta1_file: str, *args, **kwargs) -> Dict:
         raise Exception('Nie podano poprawnej sciezki do pliku!')
     if len(args) > 0:
         fasta1_file.extend([os.path.abspath(x) for x in args])
-        stan2 = np.alltrue([os.path.isfile(plik) for plik in fasta1_file])
+        stan2 = np.all([os.path.isfile(plik) for plik in fasta1_file])
         if not stan2:
             raise Exception('Podane dodatkowe pliki nie istnieja')
 
