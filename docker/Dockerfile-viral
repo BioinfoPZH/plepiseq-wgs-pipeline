@@ -209,7 +209,7 @@ COPY requirements.txt /
 RUN set -eux; \
     python3 -m pip install --no-cache-dir -U pip wheel "setuptools<81" Cython; \
     python3 -m pip install --no-cache-dir --no-build-isolation -r /requirements.txt; \
-    python3 -m pip install --no-cache-dir --no-deps \
+    python3 -m pip install --no-cache-dir \
       "git+https://github.com/andersen-lab/Freyja.git@311b7f9"
 
 WORKDIR /downloads
