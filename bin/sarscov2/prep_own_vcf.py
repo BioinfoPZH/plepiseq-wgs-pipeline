@@ -9,7 +9,6 @@ import os
 import re
 import subprocess
 import sys
-import logging
 from typing import Dict
 
 import numpy as np
@@ -17,17 +16,6 @@ import vcf
 from iranges import IRanges
 from minineedle import needle, core
 import miniseq
-
-logger = logging.getLogger(__name__)
-
-
-def setup_logging(level_name: str = "INFO"):
-    level = getattr(logging, str(level_name).upper(), logging.INFO)
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s | %(levelname)s | %(message)s"
-    )
-
 
 def _first_scalar(value):
     try:
@@ -50,28 +38,18 @@ def _extract_iranges_bounds(mutacja):
         raise TypeError(f'Unsupported IRanges item: {type(mutacja)} -> {mutacja}')
 
     start = _first_scalar(candidate.start)
-    end = _first_scalar(candidate.end)
-
-    # Prefer width-based normalization when available.
+    # width is the stable cross-version definition of interval span.
     if hasattr(candidate, 'width'):
-        width = _first_scalar(candidate.width)
-        end_by_width = start + width
-        if end != end_by_width:
-            logger.debug(
-                "IRanges bounds mismatch detected | raw_start=%s raw_end=%s width=%s end_by_width=%s",
-                start, end, width, end_by_width
-            )
-            # If end is inclusive, convert to exclusive.
-            if end + 1 == end_by_width:
-                end = end + 1
-            else:
-                end = end_by_width
+        end = start + _first_scalar(candidate.width)
+    else:
+        end = _first_scalar(candidate.end)
+        if end <= start:
+            end = start + 1
 
     return start, end
 
 
 def align_fasta_nw(fasta1_file: str, *args, **kwargs) -> Dict:
-    logger.info("Stage: align_fasta_nw | validating input files")
     fasta1_file = [os.path.abspath(fasta1_file)]
     stan1 = os.path.isfile(fasta1_file[0])
     if not stan1:
@@ -82,7 +60,6 @@ def align_fasta_nw(fasta1_file: str, *args, **kwargs) -> Dict:
         if not stan2:
             raise Exception('Podane dodatkowe pliki nie istnieja')
 
-    logger.info("Stage: align_fasta_nw | preparing tmp.fasta")
     with open('tmp.fasta', 'w') as f:
         for plik in fasta1_file:
             with open(plik, 'r') as f1:
@@ -90,7 +67,6 @@ def align_fasta_nw(fasta1_file: str, *args, **kwargs) -> Dict:
                     f.write(line)
 
     slownik_alignmentu = {}
-    logger.info("Stage: align_fasta_nw | running Needleman-Wunsch")
     fasta = miniseq.FASTA(filename="tmp.fasta")
     seq1, seq2 = fasta[0], fasta[1]
     alignment1: needle.NeedlemanWunsch[str] = needle.NeedlemanWunsch(seq1, seq2)
@@ -100,7 +76,6 @@ def align_fasta_nw(fasta1_file: str, *args, **kwargs) -> Dict:
     slownik_alignmentu[f'>{seq2.get_identifier()}'] = al2
 
     os.remove('tmp.fasta')
-    logger.info("Stage: align_fasta_nw | done | aligned_length=%d", len(al1))
 
     return slownik_alignmentu
 
@@ -163,10 +138,6 @@ def prep_mutation_list(slownik, ref_name, target_name, n=1):
     :return: bool
     """
 
-    logger.info(
-        "Stage: prep_mutation_list | start | ref=%s target=%s merge_gap=%s",
-        ref_name, target_name, n
-    )
     sekwencja_ref = slownik[ref_name]
     sekwencja_target = slownik[target_name]
     stany = []  # to bedzie lista "stanow" dla kazdej pozycji w alignmencie 0 jesli nie ma mutacji 1 jesli jest
@@ -212,13 +183,10 @@ def prep_mutation_list(slownik, ref_name, target_name, n=1):
         except Exception:
             pass
 
-    logger.debug("Stage: prep_mutation_list | raw ranges=%s", lista_zakresow)
-
     if len(lista_zakresow) == 0:
         # brak mutacji
         # dummy slownik mutacji
         slownik_mutacji = {1: ['A', 'A']}
-        logger.info("Stage: prep_mutation_list | no mutations found")
         return slownik_mutacji
 
     # tworzenie irange
@@ -232,21 +200,14 @@ def prep_mutation_list(slownik, ref_name, target_name, n=1):
     x = IRanges(start=starts, width=widths)
     try:
         zasiegi_mutacji_reduced = x.reduce(min_gap_width=n + 1)
-        logger.debug("Stage: prep_mutation_list | reduced ranges object=%s", zasiegi_mutacji_reduced)
     except Exception:
         # w przypadku pustego irange'a reduce zwraca blad wiec tworzymy sztucznie zasieg obejmujacy pierwsza pozycje
 
         zasiegi_mutacji_reduced = IRanges(start=[0], width=[1])
-        logger.warning("Stage: prep_mutation_list | reduce failed, fallback IRanges(start=[0], width=[1])")
 
     slownik_mutacji = {}
     for mutacja in zasiegi_mutacji_reduced:
-        logger.debug("Stage: prep_mutation_list | processing reduced item type=%s repr=%s", type(mutacja), mutacja)
         indeks_poczatku, indeks_konca = _extract_iranges_bounds(mutacja)
-        logger.debug(
-            "Stage: prep_mutation_list | parsed bounds | start=%d end_exclusive=%d span=%d",
-            indeks_poczatku, indeks_konca, max(0, indeks_konca - indeks_poczatku)
-        )
 
         if '-' in sekwencja_target[indeks_poczatku:indeks_konca] or '-' in sekwencja_ref[indeks_poczatku:indeks_konca]:
             # dla indeli zaczynamy raportowac mutacje na ostatniej wspolnej pozycji
@@ -260,16 +221,6 @@ def prep_mutation_list(slownik, ref_name, target_name, n=1):
 
         slownik_mutacji[numeracja_referencji[indeks_poczatku]] = [sekwencja_ref[indeks_poczatku:indeks_konca],
                                                                   sekwencja_target[indeks_poczatku:indeks_konca]]
-        logger.debug(
-            "Stage: prep_mutation_list | mutation | pos=%d raw_ref='%s' raw_alt='%s' clean_ref='%s' clean_alt='%s'",
-            numeracja_referencji[indeks_poczatku],
-            sekwencja_ref[indeks_poczatku:indeks_konca],
-            sekwencja_target[indeks_poczatku:indeks_konca],
-            sekwencja_ref[indeks_poczatku:indeks_konca].replace('-', ''),
-            sekwencja_target[indeks_poczatku:indeks_konca].replace('-', '')
-        )
-
-    logger.info("Stage: prep_mutation_list | done | mutation_blocks=%d", len(slownik_mutacji))
     return slownik_mutacji
 
 
@@ -281,10 +232,6 @@ def create_vcf_file(slownik, vcf_template, vcf_output, ref_name):
     :param vcf_output:
     :return:
     """
-    logger.info(
-        "Stage: create_vcf_file | start | template=%s output=%s chrom=%s variants=%d",
-        vcf_template, vcf_output, ref_name.replace('>', ''), len(slownik)
-    )
     vcf_template = vcf.Reader(filename=vcf_template)
     vcf_output = vcf.Writer(open(vcf_output, 'w'), vcf_template)
 
@@ -295,16 +242,6 @@ def create_vcf_file(slownik, vcf_template, vcf_output, ref_name):
     for klucz, wartosc in slownik.items():
         ref_clean = wartosc[0].replace('-', '')
         alt_clean = wartosc[1].replace('-', '')
-        if ref_clean == "" or alt_clean == "":
-            logger.warning(
-                "Stage: create_vcf_file | empty allele detected | pos=%s raw_ref='%s' raw_alt='%s' clean_ref='%s' clean_alt='%s'",
-                klucz, wartosc[0], wartosc[1], ref_clean, alt_clean
-            )
-        else:
-            logger.debug(
-                "Stage: create_vcf_file | writing | pos=%s ref=%s alt=%s",
-                klucz, ref_clean, alt_clean
-            )
         a = vcf.model._Record(CHROM=ref_name.replace('>', ''),
                               POS=klucz,
                               ID='.',
@@ -316,17 +253,10 @@ def create_vcf_file(slownik, vcf_template, vcf_output, ref_name):
                               INFO=record.INFO, FORMAT=record.FORMAT, samples=record.samples,
                               sample_indexes=record._sample_indexes)
         vcf_output.write_record(a)
-    logger.info("Stage: create_vcf_file | done")
     return True
 
 
 if __name__ == '__main__':
-    log_level = os.environ.get("PREP_OWN_VCF_LOG_LEVEL", "INFO")
-    if len(sys.argv) >= 7:
-        log_level = sys.argv[6]
-    setup_logging(log_level)
-    logger.info("prep_own_vcf.py started | log_level=%s", str(log_level).upper())
-
     sekwencja_referencji = sys.argv[1]
     sekwencja_targetu = sys.argv[2]
     n = int(sys.argv[3])
@@ -351,7 +281,6 @@ if __name__ == '__main__':
                                          ref_name=nazwa_referencji,
                                          target_name=nazwa_targetu,
                                          n=n)
-    logger.info("Stage: main | mutation dictionary prepared")
 
     # skladanie vcf-a
     # uwaga templateowy vcf musi byc przygotowany pod konkretny organizm
@@ -361,4 +290,3 @@ if __name__ == '__main__':
                     vcf_template=vcf_template,
                     vcf_output=vcf_output,
                     ref_name=nazwa_referencji)
-    logger.info("prep_own_vcf.py finished successfully")
