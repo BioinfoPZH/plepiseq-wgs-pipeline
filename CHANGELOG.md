@@ -1,6 +1,19 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.5.2] - 2026-02-20
+
+### Fixed
+- Fixed NumPy 2.0 compatibility in Python scripts by replacing deprecated `np.alltrue` with `np.all`.
+- Fixed VCF generation in `bin/sarscov2/prep_own_vcf.py` for newer `iranges` releases by normalizing interval bounds consistently for Python slicing.
+- Fixed bacterial Docker image setup for Medaka installation.
+
+### Changed
+- Updated viral Docker image dependency set to satisfy Pangolin requirements (including NumPy/scikit-learn alignment and Freyja dependency handling).
+- Updated Python dependency constraints in `requirements.txt` (including `iranges` update and restoration of Scorpio/Constellation installation path).
+- Updated bacterial image tables to version `3.8.0` to match current SISTR requirements.
+- Applied maintenance updates across Dockerfiles (`Dockerfile-viral`, `Dockerfile-bacterial`, `Dockerfile-manta`, `Dockerfile-alphafold`), including pip argument handling improvements.
+
 ## [1.5.1] - 2026-02-11
 
 ### Fixed
