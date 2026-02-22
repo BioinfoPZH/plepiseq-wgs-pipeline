@@ -16,7 +16,7 @@ RUN apt-get update --fix-missing && apt upgrade -y && \
     apt-get install build-essential pkgconf python3.10 python3-pip default-jre curl unzip wget vim bc htop git gcc zlib1g-dev libbz2-dev libcurl4-gnutls-dev libssl-dev liblzma-dev python3-pycurl screen iqtree mash seqtk -y
 
 
-RUN pip install ete3 numba numpy==1.23.4 biopython==1.73 psutil pysam 'cgecore>=1.5.5,<2.0' packaging tables==3.8.0 h5py xlrd scikit-learn fiona==1.9.6 geodatasets geopandas plotly
+RUN pip install ete3 numba numpy==1.23.4 biopython==1.83 psutil pysam 'cgecore>=1.5.5,<2.0' packaging tables==3.8.0 h5py xlrd scikit-learn fiona==1.9.6 geodatasets geopandas plotly
 ### xlrd - allows to read excels, need that for VFDB
 ### Not sure why I choose these version of some libraries
 
@@ -214,6 +214,7 @@ RUN git clone https://github.com/phac-nml/ecoli_serotyping.git ;\
     ectyper_init ;\
     cd /opt/docker
 
+RUN python3 -m pip install --no-cache-dir --force-reinstall --no-deps "biopython==1.83"
 
 # Custom scripts 
 COPY bin/bacteria/all_functions_salmonella.py bin/bacteria/run_blastn_ver11.sh bin/bacteria/parse_fastqc_output.py data/bacteria/ne_10m_admin_0_countries.geojson bin/bacteria/plot_historical_data_plotly.py  bin/bacteria/parse_speciesfinder.py /data/
