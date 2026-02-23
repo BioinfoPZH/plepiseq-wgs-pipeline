@@ -3027,7 +3027,7 @@ else:
         with open(f"{record.id}.fasta", "w") as f:
             f.write(f">{record.id}\\n{str(record.seq)}")
 
-json_output["file_data"] = tmp_list
+    json_output["file_data"] = tmp_list
 
 with open("fasta_info.json", 'w') as f1:
         f1.write(json.dumps(json_output, indent = 4))
