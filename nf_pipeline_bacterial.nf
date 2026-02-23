@@ -1623,8 +1623,8 @@ process run_speciesfinder_illumina {
     cp kmerfider_out/results.res results.spa
     cp kmerfider_out/results.txt .
   
-    SPECIES=`python /data/parse_speciesfinder.py kmerfider_out/data.json species`
-    GENUS=`python /data/parse_speciesfinder.py kmerfider_out/data.json genus`
+    SPECIES=`python /data/parse_speciesfinder.py results.spa species`
+    GENUS=`python /data/parse_speciesfinder.py results.spa genus`
   fi
   """
 }
@@ -3415,8 +3415,8 @@ process run_speciesfinder_nanopore {
     cp kmerfider_out/results.res results.spa
     cp kmerfider_out/results.txt .
   
-    SPECIES=`python /data/parse_speciesfinder.py kmerfider_out/data.json species`
-    GENUS=`python /data/parse_speciesfinder.py kmerfider_out/data.json genus`
+    SPECIES=`python /data/parse_speciesfinder.py results.spa species`
+    GENUS=`python /data/parse_speciesfinder.py results.spa genus`
   fi
   """
 }
