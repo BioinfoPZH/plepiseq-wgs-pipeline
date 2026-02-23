@@ -1,6 +1,15 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.5.3] - 2026-02-23
+
+### Changed
+- Updated SpeciesFinder parsing to use a custom scoring function for species/genus selection based on filtered hits (`Template_length >= 1 Mbp`) and the mean z-score of `Depth` and `Template_Identity` columns from results.spa.
+- Updated contamination JSON generators to support SpeciesFinder `results.txt` format in place of legacy KmerFinder parsing.
+
+### Fixed
+- Ensured contamination summary selection always reports two distinct species; when no different secondary species is available, the output now uses `None` with coverage `0`.
+
 ## [1.5.2] - 2026-02-20
 
 ### Fixed
