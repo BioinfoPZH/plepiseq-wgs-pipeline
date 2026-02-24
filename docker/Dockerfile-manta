@@ -72,6 +72,9 @@ RUN pip install numpy==1.16.5 biopython==1.76
 CMD ["/bin/bash"]
 
 FROM centos:7.9.2009 AS manta
+ARG PIP_TIMEOUT
+ARG PIP_INDEX_URL
+ARG PIP_TRUSTED_HOST
 
 # Workaround for missing repository
 # https://serverfault.com/questions/904304/could-not-resolve-host-mirrorlist-centos-org-centos-7
