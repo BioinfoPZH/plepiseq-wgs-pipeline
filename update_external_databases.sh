@@ -20,11 +20,11 @@ output=""  #  top-level directory with databases, each database will be a subdir
 image_name="plepiseq-wgs-pipeline-updater:latest" #  name of the image within which all updates are performed
 cpus=1
 limit_first_n="" # optional: limit number of records downloaded (for enterobase and pubmlst testing)
-pubmlst_oauth_file="" # optional path to PubMLST OAuth credentials file on host
+credentials_file="" # path to key=value credentials file on host; required for enterobase, pubmlst, cgmlst, mlst, and all
 
 # Function to display help message
 function show_help() {
-    echo "Usage: $0 --database <string> --output <path> --image_name <string> [--cpus <int> --kraken-type <type> --genus <Salmonella|Escherichia|Campylobacter|all> --limit_first_n <int> --pubmlst_oauth_file <path>]"
+    echo "Usage: $0 --database <string> --output <path> --image_name <string> [--cpus <int> --kraken-type <type> --genus <Salmonella|Escherichia|Campylobacter|all> --limit_first_n <int>] [--credentials_file <path>]"
     echo
     echo "Options:"
     echo "  --database      Name of the database to download or update"
@@ -50,10 +50,14 @@ function show_help() {
     echo "                   records will still be available on the next run. Remove the limit for a full sync."
     echo "                   For enterobase: only first N strains from remote list are considered; re-run without"
     echo "                   the limit to pick up the rest."
-    echo "  --pubmlst_oauth_file  Optional path to PubMLST OAuth credentials file on host; will be mounted read-only into container"
+    echo "Conditionally required arguments:"
+    echo "  --credentials_file    Path to key=value credentials file on host"
+    echo "                        REQUIRED when --database is one of: enterobase, pubmlst, cgmlst, mlst, all."
+    echo "                        The file is mounted read-only into the container."
+    echo "                        See sample_credentials.txt for the expected format."
 }
 
-OPTIONS=$(getopt -o h --long database:,output:,cpus:,image_name:,kraken_type:,genus:,limit_first_n:,pubmlst_oauth_file:,help -- "$@")
+OPTIONS=$(getopt -o h --long database:,output:,cpus:,image_name:,kraken_type:,genus:,limit_first_n:,credentials_file:,help -- "$@")
 
 eval set -- "$OPTIONS"
 
@@ -94,8 +98,8 @@ while true; do
             limit_first_n="$2"
             shift 2
             ;;
-        --pubmlst_oauth_file)
-            pubmlst_oauth_file="$2"
+        --credentials_file)
+            credentials_file="$2"
             shift 2
             ;;
         -h|--help)
@@ -201,6 +205,17 @@ if [[ -n "$limit_first_n" ]]; then
     fi
 fi
 
+## Credentials file is required for databases that need API tokens / OAuth
+NEEDS_CREDENTIALS=(enterobase pubmlst cgmlst mlst all)
+if [[ " ${NEEDS_CREDENTIALS[*]} " =~ " ${database} " ]]; then
+    if [[ -z "$credentials_file" ]]; then
+        echo "Error: --credentials_file is required when --database is '${database}'."
+        echo "       See sample_credentials.txt for the expected format."
+        show_help
+        exit 1
+    fi
+fi
+
 # Output the parsed arguments
 echo "Database: $database"
 echo "Output Path: $output"
@@ -209,20 +224,20 @@ echo "Downloading all databases may take several hours"
 [[ "$database" == "kraken2" ]] && echo "Kraken Type: ${kraken_type}"
 [[ "$database" == "mlst"  ||  "$database" == "cgmlst" || "$database" == "enterobase" ]] && echo "Genus: ${genus}"
 [[ -n "$limit_first_n" ]] && echo "Limit first N records: ${limit_first_n}"
-[[ -n "$pubmlst_oauth_file" ]] && echo "PubMLST OAuth file: ${pubmlst_oauth_file}"
+[[ -n "$credentials_file" ]] && echo "Credentials file: ${credentials_file}"
 
 EXTRA_VOLUMES=""
-if [[ -n "$pubmlst_oauth_file" ]]; then
-    pubmlst_oauth_file=$(realpath "${pubmlst_oauth_file}")
-    if [[ ! -f "$pubmlst_oauth_file" ]]; then
-        echo "Error: --pubmlst_oauth_file does not exist: $pubmlst_oauth_file"
+if [[ -n "$credentials_file" ]]; then
+    credentials_file=$(realpath "${credentials_file}")
+    if [[ ! -f "$credentials_file" ]]; then
+        echo "Error: --credentials_file does not exist: $credentials_file"
         exit 1
     fi
-    if [[ ! -r "$pubmlst_oauth_file" ]]; then
-        echo "Error: --pubmlst_oauth_file is not readable: $pubmlst_oauth_file"
+    if [[ ! -r "$credentials_file" ]]; then
+        echo "Error: --credentials_file is not readable: $credentials_file"
         exit 1
     fi
-    EXTRA_VOLUMES="--volume ${pubmlst_oauth_file}:/home/update/pubmlst_oauth.txt:ro"
+    EXTRA_VOLUMES="--volume ${credentials_file}:/home/update/credentials.txt:ro"
 fi
 
 

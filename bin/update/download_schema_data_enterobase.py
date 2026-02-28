@@ -21,7 +21,7 @@ from utils.net import StatusType, check_url_available
 from utils.report import ALL_STEPS, SCHEMA_VERSION, ReportBuilder
 from utils.run_id import generate_run_id
 from utils.setup_logging import _setup_logging
-from utils.updates_helpers import file_md5sum
+from utils.updates_helpers import file_md5sum, parse_credentials_file, get_enterobase_auth
 from utils.validation import verify_expected_files, get_timestamp
 
 
@@ -37,12 +37,7 @@ REQUIRED_SENTINELS_MLST: Dict[str, List[str]] = {
 }
 
 
-def _basic_auth_tuple(api_token: str) -> Tuple[str, str]:
-    # EnteroBase API accepts token via Basic auth (token as username, blank password)
-    return api_token, ""
-
-
-def _read_first_line(path: Path) -> str:
+def _first_line(path: Path) -> str:
     with path.open("rt", encoding="utf-8", errors="replace") as f:
         return (f.readline() or "").rstrip("\n")
 
@@ -56,7 +51,7 @@ def _write_profiles_local_stub(*, output_dir: Path, logger) -> None:
     stub_path = local_dir / "profiles_local.list"
     if stub_path.exists():
         return
-    header = _read_first_line(output_dir / "profiles.list")
+    header = _first_line(output_dir / "profiles.list")
     stub_path.write_text(header + "\n", encoding="utf-8")
     logger.info("Created local profiles stub: %s", stub_path)
 
@@ -186,11 +181,11 @@ def _gunzip_to_file(*, src_gz: Path, dest: Path) -> None:
 @click.option("-c", "--cpus", default=4, show_default=True, help="Number of CPUs to use for BLAST indexing.")
 @click.option(
     "-t",
-    "--api_token_file",
-    default="/home/update/enterobase_api.txt",
+    "--credentials_file",
+    default="/home/update/credentials.txt",
     show_default=True,
     type=click.Path(),
-    help="Path to EnteroBase API token file.",
+    help="Path to key=value credentials file (must contain enterobase_token).",
 )
 @click.option("-o", "--output_dir", help="[REQUIRED] Output directory.", required=True, type=click.Path())
 def main(
@@ -205,7 +200,7 @@ def main(
     scheme_name: str,
     scheme_dir: str,
     cpus: int,
-    api_token_file: str,
+    credentials_file: str,
     output_dir: str,
 ) -> None:
 
@@ -262,10 +257,14 @@ def main(
         for s in steps:
             rb.add_skipped(s, reason)
 
-    # Read API token
-    token_path = Path(api_token_file)
-    api_token = token_path.read_text(encoding="utf-8").splitlines()[0].strip()
-    auth = _basic_auth_tuple(api_token)
+    credentials = parse_credentials_file(Path(credentials_file), logger)
+    auth = get_enterobase_auth(credentials, logger)
+    if auth is None:
+        skip_remaining_steps(remaining_steps, "Skipped: missing EnteroBase API token.")
+        rb.fail(code="AUTH_TOKEN_MISSING", message=f"No valid enterobase_token in credentials file: {credentials_file}", retry_recommended=False)
+        rb.finalize("FAIL")
+        rb.write(str(report_dir / report_file))
+        return
 
     api_url = f"https://enterobase.warwick.ac.uk/api/v2.0/{database}/{scheme_name}/loci?limit=10000&scheme={scheme_name}&offset=0"
     scheme_base_url = f"https://enterobase.warwick.ac.uk/schemes/{scheme_dir}/"

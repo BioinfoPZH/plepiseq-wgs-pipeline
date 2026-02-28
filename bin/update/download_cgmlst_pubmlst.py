@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import click
-from requests_oauthlib import OAuth1
 
 from utils.blast_helpers import run_makeblastdb
 from utils.download_helpers import _download_file_with_retry
@@ -19,7 +18,12 @@ from utils.net import StatusType, check_url_available
 from utils.report import ALL_STEPS, SCHEMA_VERSION, ReportBuilder
 from utils.run_id import generate_run_id
 from utils.setup_logging import _setup_logging
-from utils.updates_helpers import composite_availability_check, file_md5sum
+from utils.updates_helpers import (
+    composite_availability_check,
+    file_md5sum,
+    get_pubmlst_oauth,
+    parse_credentials_file,
+)
 from utils.validation import get_timestamp, verify_expected_files
 
 
@@ -36,56 +40,6 @@ SOURCE = {
     # expected_processed_files is computed dynamically from loci list + scheme type
     "expected_processed_files": [],
 }
-
-
-def _parse_kv_file(path: Path) -> Dict[str, str]:
-    """
-    Parse a simple key=value file. Ignores blank lines and comments (#...).
-    """
-    out: Dict[str, str] = {}
-    raw = path.read_text(encoding="utf-8", errors="replace")
-    for line in raw.splitlines():
-        s = line.strip()
-        if not s or s.startswith("#"):
-            continue
-        if "=" not in s:
-            continue
-        k, v = s.split("=", 1)
-        out[k.strip()] = v.strip()
-    return out
-
-
-def _maybe_oauth_auth(*, oauth_credentials_file: Optional[Path], logger):
-    """
-    Return a `requests`-compatible OAuth1 auth object if credentials are provided.
-
-    Supports two-legged OAuth1 (client_id/client_secret) and optionally access token/secret.
-    Returns None if not configured.
-    """
-    if oauth_credentials_file is None:
-        return None
-    try:
-        if not oauth_credentials_file.exists():
-            logger.warning("OAuth credentials file not found (%s); proceeding unauthenticated.", oauth_credentials_file)
-            return None
-        creds = _parse_kv_file(oauth_credentials_file)
-        client_id = creds.get("client_id") or creds.get("client_key") or ""
-        client_secret = creds.get("client_secret") or ""
-        access_token = creds.get("access_token") or creds.get("resource_owner_key") or ""
-        access_token_secret = creds.get("access_token_secret") or creds.get("resource_owner_secret") or ""
-        if not client_id:
-            logger.warning("OAuth credentials file present but missing client_id; proceeding unauthenticated.")
-            return None
-    except Exception as e:
-        logger.warning("Failed to parse OAuth credentials file (%s): %s; proceeding unauthenticated.", oauth_credentials_file, e)
-        return None
-
-    if access_token and access_token_secret:
-        logger.info("Using OAuth1 (client + access token) for PubMLST requests.")
-        return OAuth1(client_id, client_secret, access_token, access_token_secret)
-
-    logger.info("Using OAuth1 (client credentials only) for PubMLST requests.")
-    return OAuth1(client_id, client_secret)
 
 
 def _first_line(path: Path) -> str:
@@ -358,7 +312,7 @@ def _concat_fastas_in_dir(*, src_dir: Path, out_path: Path) -> None:
 @click.option("--log_file", type=str, default="log.log", help="Log file name.")
 @click.option("--user", type=str, default=None, help="User name (report metadata).")
 @click.option("--host", type=str, default=None, help="Host name (report metadata).")
-@click.option("--oauth_credentials_file", type=click.Path(), default=None, help="Optional OAuth credentials file (bind-mounted).")
+@click.option("--credentials_file", type=click.Path(), default="/home/update/credentials.txt", show_default=True, help="Path to key=value credentials file (PubMLST keys: client_id, client_secret).")
 @click.option("--download_workers", type=int, default=4, show_default=True, help="Max concurrent PubMLST downloads (capped at 4).")
 @click.option("-c", "--cpus", default=4, show_default=True, help="Number of CPUs to use for BLAST indexing.")
 @click.option("-o", "--output_dir", help="[REQUIRED] Output directory.", required=True, type=click.Path())
@@ -384,7 +338,7 @@ def main(
     log_file: str,
     user: Optional[str],
     host: Optional[str],
-    oauth_credentials_file: Optional[str],
+    credentials_file: str,
     download_workers: int,
     cpus: int,
     output_dir: str,
@@ -430,9 +384,8 @@ def main(
         for s in steps:
             rb.add_skipped(s, reason)
 
-    # Optional OAuth
-    oauth_path = Path(oauth_credentials_file) if oauth_credentials_file else None
-    oauth_auth = _maybe_oauth_auth(oauth_credentials_file=oauth_path, logger=logger)
+    credentials = parse_credentials_file(Path(credentials_file), logger)
+    oauth_auth = get_pubmlst_oauth(credentials, logger)
 
     # Cap PubMLST concurrency at 4 per their public guidance
     if download_workers < 1:

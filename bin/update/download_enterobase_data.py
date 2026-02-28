@@ -19,7 +19,7 @@ from utils.net import HEADERS, StatusType, check_url_available
 from utils.report import ALL_STEPS, SCHEMA_VERSION, ReportBuilder
 from utils.run_id import generate_run_id
 from utils.setup_logging import _setup_logging
-from utils.updates_helpers import file_md5sum
+from utils.updates_helpers import file_md5sum, parse_credentials_file, get_enterobase_auth
 from utils.validation import get_timestamp, verify_expected_files
 
 from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
@@ -46,15 +46,6 @@ class STSchemeModel(BaseModel):
 class StrainDataEntryModel(BaseModel):
     model_config = ConfigDict(extra="allow")
     sts: List[STSchemeModel] = []
-
-
-def _basic_auth_tuple(api_token: str) -> Tuple[str, str]:
-    return api_token, ""
-
-
-def _read_first_line(path: Path) -> str:
-    with path.open("rt", encoding="utf-8", errors="replace") as f:
-        return (f.readline() or "").strip()
 
 
 def _fetch_json_with_retry(
@@ -403,11 +394,11 @@ def _download_sts(
 @click.option("-g", "--cgname", type=click.Choice(["cgMLST_v2", "cgMLST"]), required=True)
 @click.option(
     "-t",
-    "--api_token_file",
-    default="/home/update/enterobase_api.txt",
+    "--credentials_file",
+    default="/home/update/credentials.txt",
     show_default=True,
     type=click.Path(path_type=Path),
-    help="Path to EnteroBase API token file.",
+    help="Path to key=value credentials file (must contain enterobase_token).",
 )
 @click.option("-o", "--output_dir", required=True, type=click.Path(path_type=Path), help="Output directory.")
 @click.option(
@@ -426,7 +417,7 @@ def main(
     host: Optional[str],
     database: str,
     cgname: str,
-    api_token_file: Path,
+    credentials_file: Path,
     output_dir: Path,
     limit_first_n: Optional[int],
 ) -> None:
@@ -479,14 +470,14 @@ def main(
         rb.write(str(report_dir / report_file))
         return
 
-    api_token = _read_first_line(api_token_file)
-    if not api_token:
+    credentials = parse_credentials_file(credentials_file, logger)
+    auth = get_enterobase_auth(credentials, logger)
+    if auth is None:
         skip_remaining_steps(remaining_steps, "Skipped: missing EnteroBase API token.")
-        rb.fail(code="AUTH_TOKEN_MISSING", message=f"Token file is empty: {api_token_file}", retry_recommended=False)
+        rb.fail(code="AUTH_TOKEN_MISSING", message=f"No valid enterobase_token in credentials file: {credentials_file}", retry_recommended=False)
         rb.finalize("FAIL")
         rb.write(str(report_dir / report_file))
         return
-    auth = _basic_auth_tuple(api_token)
 
     strains_probe_url = f"https://enterobase.warwick.ac.uk/api/v2.0/{database}/strains?limit=1&offset=0"
     strains_download_url = (

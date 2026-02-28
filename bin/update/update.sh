@@ -180,7 +180,7 @@ update_mlst_campylo() {
 	                                                  --container_image "${UPDATER_CONTAINER_IMAGE}" \
 	                                                  --user "${UPDATER_USER}" \
 	                                                  --host "${UPDATER_HOST}" \
-	                                                  --oauth_credentials_file /home/update/pubmlst_oauth.txt \
+	                                                  --credentials_file /home/update/credentials.txt \
 	                                                  --download_workers 4
 }
 
@@ -327,7 +327,7 @@ update_cgmlst() {
 						                   --container_image "${UPDATER_CONTAINER_IMAGE}" \
 						                   --user "${UPDATER_USER}" \
 						                   --host "${UPDATER_HOST}" \
-						                   --oauth_credentials_file /home/update/pubmlst_oauth.txt \
+						                   --credentials_file /home/update/credentials.txt \
 						                   --download_workers 4
 
 	elif [ ${genus} == "Salmonella" ]; then
@@ -401,7 +401,7 @@ update_cgmlst() {
                                                                    --container_image "${UPDATER_CONTAINER_IMAGE}" \
                                                                    --user "${UPDATER_USER}" \
                                                                    --host "${UPDATER_HOST}" \
-                                                                   --oauth_credentials_file /home/update/pubmlst_oauth.txt \
+                                                                   --credentials_file /home/update/credentials.txt \
                                                                    --download_workers 4
 	fi
 }
@@ -422,7 +422,7 @@ update_enterobase() {
 		CGNAME="cgMLST" 
 		python3 -u /home/update/download_enterobase_data.py --database "${DATABASE}" \
 								    --cgname "${CGNAME}" \
-								    --api_token_file /home/update/enterobase_api.txt \
+								    --credentials_file /home/update/credentials.txt \
 								    --output_dir /home/external_databases/enterobase/Escherichia \
 								    --workspace "${UPDATER_WORKSPACE}" \
 								    --container_image "${UPDATER_CONTAINER_IMAGE}" \
@@ -435,7 +435,7 @@ update_enterobase() {
 		CGNAME="cgMLST_v2" 
 		python3 -u /home/update/download_enterobase_data.py --database "${DATABASE}" \
 								    --cgname "${CGNAME}" \
-								    --api_token_file /home/update/enterobase_api.txt \
+								    --credentials_file /home/update/credentials.txt \
 								    --output_dir /home/external_databases/enterobase/Salmonella \
 								    --workspace "${UPDATER_WORKSPACE}" \
 								    --container_image "${UPDATER_CONTAINER_IMAGE}" \
@@ -448,7 +448,7 @@ update_enterobase() {
                 CGNAME="cgMLST"
                 python3 -u /home/update/download_enterobase_data.py --database "${DATABASE}" \
                                                                     --cgname "${CGNAME}" \
-                                                                    --api_token_file /home/update/enterobase_api.txt \
+                                                                    --credentials_file /home/update/credentials.txt \
                                                                     --output_dir /home/external_databases/enterobase/Escherichia \
                                                                     --workspace "${UPDATER_WORKSPACE}" \
                                                                     --container_image "${UPDATER_CONTAINER_IMAGE}" \
@@ -461,7 +461,7 @@ update_enterobase() {
                 CGNAME="cgMLST_v2"
                 python3 -u /home/update/download_enterobase_data.py --database "${DATABASE}" \
                                                                     --cgname "${CGNAME}" \
-                                                                    --api_token_file /home/update/enterobase_api.txt \
+                                                                    --credentials_file /home/update/credentials.txt \
                                                                     --output_dir /home/external_databases/enterobase/Salmonella \
                                                                     --workspace "${UPDATER_WORKSPACE}" \
                                                                     --container_image "${UPDATER_CONTAINER_IMAGE}" \
@@ -491,7 +491,7 @@ update_pubmlst() {
 		--container_image "${UPDATER_CONTAINER_IMAGE}" \
 		--user "${UPDATER_USER}" \
 		--host "${UPDATER_HOST}" \
-		--oauth_credentials_file /home/update/pubmlst_oauth.txt \
+		--credentials_file /home/update/credentials.txt \
 		"${limit_args[@]}" \
 		>> /dev/null 2>&1
 }
