@@ -1,6 +1,11 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.6.0] - 2026-02-28
+### Changed
+- Replaced all database update scripts in `bin/update/` with milestone-based Python clients. Each client verifies internet connectivity, database availability, and expected output files before and after every download, preventing silent data loss. Clients produce a structured JSON report (schema: `https://github.com/michallaz/plepiseq_json`) and a log file per run.
+- Unified EnteroBase and PubMLST credentials into a single `key=value` file (`--credentials_file`) mounted read-only into the container, replacing the previously used token file that was copied to a docker image. See `sample_credentials.txt` for the expected format.
+
 ## [1.5.3] - 2026-02-23
 
 ### Changed
