@@ -61,6 +61,7 @@ SOURCE = {
 
 
 FREYJA_DATA_RAW_BASE = "https://raw.githubusercontent.com/andersen-lab/Freyja-data/main"
+FREYJA_DATA_LFS_BASE = "https://media.githubusercontent.com/media/andersen-lab/Freyja-data/main"
 FREYJA_BARCODES_RAW_BASE = "https://raw.githubusercontent.com/andersen-lab/Freyja-barcodes/main"
 
 
@@ -202,12 +203,14 @@ def download_freyja_files(output_dir: Path, logger) -> Dict[str, Any]:
     files: List[Tuple[str, Path]] = []
 
     # SARS-CoV-2 files from Freyja-data
+    # usher_barcodes.csv is stored in Git LFS; raw.githubusercontent.com returns
+    # the LFS pointer, so we fetch it via media.githubusercontent.com instead.
     sars_dir = output_dir / "sarscov2"
     files.extend(
         [
             (f"{FREYJA_DATA_RAW_BASE}/lineages.yml", sars_dir / "lineages.yml"),
             (f"{FREYJA_DATA_RAW_BASE}/curated_lineages.json", sars_dir / "curated_lineages.json"),
-            (f"{FREYJA_DATA_RAW_BASE}/usher_barcodes.csv", sars_dir / "usher_barcodes.csv"),
+            (f"{FREYJA_DATA_LFS_BASE}/usher_barcodes.csv", sars_dir / "usher_barcodes.csv"),
         ]
     )
 
