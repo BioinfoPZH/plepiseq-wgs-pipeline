@@ -1,6 +1,12 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.7.0] - 2026-03-02
+### Changed
+- Renamed all SARS-CoV-2 primer schemes to descriptive names (e.g. `V1` -> `Artic_V1`, `V1200` -> `Midnight_1200nt`, `VarSkip2` -> `VarSkip_V2`).
+- Renamed RSV primer schemes (`V0` -> `RSV_WHO-2015`, `V1` -> `RSV_Artic_V1`).
+- Added `UniRef` as a default Influenza primer schema
+
 ## [1.6.0] - 2026-02-28
 ### Changed
 - Replaced all database update scripts in `bin/update/` with milestone-based Python clients. Each client verifies internet connectivity, database availability, and expected output files before and after every download, preventing silent data loss. Clients produce a structured JSON report (schema: `https://github.com/BioinfoPZH/plepiseq_json`) and a log file per run.
