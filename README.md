@@ -141,9 +141,9 @@ Supported primer sets:
 
 | Virus          | Scheme(s)                                                                         |
 |----------------|-----------------------------------------------------------------------------------|
-| **SARS‑CoV‑2** | `V1`, `V3`, `V4`, `V4.1`, `V5.3.2`, `V1200`, `VarSkip2`, `EQA2023.*`, `EQA2024.*` |
-| **RSV**        | `V0`, `V1`                                                                        |
-| **Influenza**  | *primers_id unused (segment specific)*                                            |
+| **SARS‑CoV‑2** | `Artic_V1`–`Artic_V5.4.2`, `Midnight_1200nt`, `VarSkip_V1a`, `VarSkip_V2`, `VarSkip_V2b`, `VarSkip_V1a_long`, `EQA2023.*`, `EQA2024.*` |
+| **RSV**        | `RSV_WHO-2015`, `RSV_Artic_V1`                                                    |
+| **Influenza**  | `UniRef`                                                                          |
 
 For a full list of explicit & implicit options, see §6 of the documentation.
 
