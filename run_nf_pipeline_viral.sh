@@ -584,5 +584,3 @@ nextflow run ${projectDir}/nf_pipeline_viral.nf \
     -profile ${profile} \
     -with-trace
 
-# Example call for SARS-CoV-2 Illumina data on A100
-# ./run_nf_pipeline.sh --reads "/mnt/md0/michall/EQA2024_SARS/fastq/*_{1,2}.fastq.gz"  --machine="Illumina" --species="SARS-CoV-2" --projectDir="/home/michall/git/plepiseq-wgs-pipeline/" --threads 40 --primers_id="EQA2023.SARS2"
