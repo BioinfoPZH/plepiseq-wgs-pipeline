@@ -2,10 +2,14 @@
 All notable changes to this project will be documented in this file.
 
 ## [1.7.0] - 2026-03-02
+### Added
+- Introduced `run_pipeline.sh` -- a unified dispatcher that routes to the correct sub-wrapper (viral or bacterial) based on `--organism`, providing a single entry point for both pipelines.
+
 ### Changed
 - Renamed all SARS-CoV-2 primer schemes to descriptive names (e.g. `V1` -> `Artic_V1`, `V1200` -> `Midnight_1200nt`, `VarSkip2` -> `VarSkip_V2`).
 - Renamed RSV primer schemes (`V0` -> `RSV_WHO-2015`, `V1` -> `RSV_Artic_V1`).
-- Added `UniRef` as a default Influenza primer schema
+- Added `UniRef` as a default Influenza primer schema.
+- Shell wrapper now validates that the provided primer scheme matches the selected species.
 
 ## [1.6.0] - 2026-02-28
 ### Changed
