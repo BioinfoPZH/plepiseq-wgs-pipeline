@@ -24,7 +24,7 @@ credentials_file="" # path to key=value credentials file on host; required for e
 
 # Function to display help message
 function show_help() {
-    echo "Usage: $0 --database <string> --output <path> --image_name <string> [--cpus <int> --kraken-type <type> --genus <Salmonella|Escherichia|Campylobacter|all> --limit_first_n <int>] [--credentials_file <path>]"
+    echo "Usage: $0 --database <string> --output <path> --image_name <string> [--cpus <int> --kraken_type <type> --genus <Salmonella|Escherichia|Campylobacter|all> --limit_first_n <int>] [--credentials_file <path>]"
     echo
     echo "Options:"
     echo "  --database      Name of the database to download or update"
@@ -121,7 +121,7 @@ done
 
 # Check if a user provided a correct database to download/update
 CORRECT_DB=0
-ALL_DB=(amrfinder_plus mlst cgmlst cgmlstfinder, disinfinder resfinder vfdb enterobase kmerfinder metaphlan phiercc pubmlst pointfinder plasmidfinder virulencefinder spifinder speciesfinder mlstfinder pangolin nextclade kraken2 freyja alphafold all)
+ALL_DB=(amrfinder_plus mlst cgmlst disinfinder resfinder vfdb enterobase kmerfinder metaphlan phiercc pubmlst pointfinder plasmidfinder virulencefinder spifinder speciesfinder mlstfinder pangolin nextclade kraken2 freyja alphafold all)
 for var in ${ALL_DB[@]}; do
     if [ ${database} == ${var} ];then
            CORRECT_DB=1
@@ -198,7 +198,7 @@ fi
 
 ## Validate limit_first_n if provided (must be a positive integer, only valid for enterobase and pubmlst)
 if [[ -n "$limit_first_n" ]]; then
-    if ! [[ "$limit_first_n" =~ ^[0-9]+$ ]]; then
+    if ! [[ "$limit_first_n" =~ ^[1-9][0-9]*$ ]]; then
         echo "Error: --limit_first_n must be a positive integer."
         show_help
         exit 1

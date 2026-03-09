@@ -1,6 +1,6 @@
 run_nf_pipeline.sh
 results/
-bin/update/enterobase_api.txt
+bin/update/credentials.txt
 
 # nextflow
 .nextflow/
