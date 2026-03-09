@@ -450,7 +450,7 @@ def main(
         execution_context=execution_context,
         run_id=run_id,
         source=SOURCE,
-        log_file=f"{execution_context['workspace']}/logs/{log_file}",
+        log_file=f"{execution_context['workspace']}/reports/{report_file}",
     )
 
     remaining_steps = list(ALL_STEPS)

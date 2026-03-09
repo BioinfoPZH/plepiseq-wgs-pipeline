@@ -377,7 +377,7 @@ def main(
         execution_context=execution_context,
         run_id=run_id,
         source=SOURCE,
-        log_file=f"{execution_context['workspace']}/logs/{log_file}",
+        log_file=f"{execution_context['workspace']}/reports/{report_file}",
     )
 
     def skip_remaining_steps(steps: List[str], reason: str) -> None:

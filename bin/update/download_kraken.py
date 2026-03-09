@@ -20,6 +20,7 @@ from utils.run_id import generate_run_id
 from utils.validation import verify_expected_files
 from utils.setup_logging import _setup_logging
 from utils.generic_helpers import remove_old_workspace
+from utils.version_manifest import write_version_manifest
 from utils.s3_helpers import (
 
     check_s3_connectivity,
@@ -49,7 +50,7 @@ SOURCE = {
     # artifacts we can reliably expect are the extracted DB files themselves.
     # Schema requires minItems=1.
     "expected_raw_files": ["database200mers.kmer_distrib",
-                           "modes.dmp",
+                           "nodes.dmp",
                            "taxo.k2d",
                            "hash.k2d"],
     "expected_processed_files": ["database200mers.kmer_distrib",
@@ -526,6 +527,9 @@ def main(local_path: str, db_name: str, workspace: Optional[str], run_id: Option
             "retryable": False,
             "metrics": {},
         })
+        remaining_steps.remove("REMOTE_FILES_DOWNLOAD_STATUS")
+        skip_remaining_steps(remaining_steps, "Skipped: no target tarball found for download.")
+        rb.fail(code="NO_TARGET_TARBALL", message="No target tarball found for download", retry_recommended=True)
         rb.finalize("FAIL")
         rb.write(str(report_dir / report_file))
         return
@@ -560,6 +564,7 @@ def main(local_path: str, db_name: str, workspace: Optional[str], run_id: Option
         rb.write(str(report_dir / report_file))
         return
 
+    write_version_manifest(output_dir / "current_md5.json", _new_md5)
     rb.finalize("PASS")
     rb.write(str(report_dir / report_file))
 
