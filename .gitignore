@@ -23,10 +23,6 @@ trace-*.txt
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
 
 ### Vim ###
 [._]*.s[a-v][a-z]

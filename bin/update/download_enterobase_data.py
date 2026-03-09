@@ -21,6 +21,7 @@ from utils.run_id import generate_run_id
 from utils.setup_logging import _setup_logging
 from utils.updates_helpers import file_md5sum, parse_credentials_file, get_enterobase_auth
 from utils.validation import get_timestamp, verify_expected_files
+from utils.generic_helpers import backup_paths, restore_backups, remove_backup_files
 
 from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
 
@@ -90,41 +91,6 @@ def _load_checksum_list(*, base_dir: Path, rel_files: List[str]) -> List[Dict[st
             out.append({"file_name": rel, "checksum": file_md5sum(str(p))})
     return out
 
-
-def _backup_paths(paths: List[Path], logger) -> List[Tuple[Path, Path]]:
-    backups: List[Tuple[Path, Path]] = []
-    for p in paths:
-        if not p.exists():
-            continue
-        bak = p.with_name(p.name + ".old")
-        if bak.exists():
-            bak.unlink()
-        logger.info("Backing up existing file: %s -> %s", p, bak)
-        os.replace(p, bak)
-        backups.append((p, bak))
-    return backups
-
-
-def _restore_backups(backups: List[Tuple[Path, Path]], logger) -> None:
-    for original, backup in backups:
-        try:
-            if original.exists():
-                original.unlink()
-        except Exception:
-            pass
-        if backup.exists():
-            logger.info("Restoring backup: %s -> %s", backup, original)
-            os.replace(backup, original)
-
-
-def _remove_backup_files(backups: List[Tuple[Path, Path]], logger) -> None:
-    for _original, backup in backups:
-        try:
-            if backup.exists():
-                logger.info("Removing backup file: %s", backup)
-                backup.unlink()
-        except Exception as e:
-            logger.warning("Failed to remove backup %s: %s", backup, e)
 
 
 def _write_md5_manifest(*, out_dir: Path, checksums: List[Dict[str, str]]) -> Path:
@@ -793,12 +759,12 @@ def main(
     ]
     backups: List[Tuple[Path, Path]] = []
     try:
-        backups = _backup_paths(targets, logger=logger)
+        backups = backup_paths(targets, logger)
         (tmp_strains).replace(out_dir / "strains_table.npy")
         (tmp_straindata).replace(out_dir / "straindata_table.npy")
         (tmp_sts).replace(out_dir / "sts_table.npy")
     except Exception as e:
-        _restore_backups(backups, logger=logger)
+        restore_backups(backups, logger)
         proc = {
             "status": StatusType.FAILED.value,
             "message": f"Failed to replace final files (restored backups): {e}",
@@ -850,7 +816,7 @@ def main(
     rb.add_named_milestone("FINAL_STATUS", final)
     remaining_steps.remove("FINAL_STATUS")
     if final["status"] != StatusType.PASSED.value:
-        _restore_backups(backups, logger=logger)
+        restore_backups(backups, logger)
         rb.fail(code="FINAL_STATUS_FAILED", message=final.get("message", ""), retry_recommended=False)
         rb.finalize("FAIL")
         rb.write(str(report_dir / report_file))
@@ -859,7 +825,7 @@ def main(
     checksums_after_final = _load_checksum_list(base_dir=out_dir, rel_files=expected)
     manifest_path = _write_md5_manifest(out_dir=out_dir, checksums=checksums_after_final)
     logger.info("Wrote checksum manifest: %s", manifest_path)
-    _remove_backup_files(backups, logger=logger)
+    remove_backup_files(backups, logger)
 
     rb.finalize("PASS")
     rb.write(str(report_dir / report_file))

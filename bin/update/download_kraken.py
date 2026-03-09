@@ -508,7 +508,7 @@ def main(local_path: str, db_name: str, workspace: Optional[str], run_id: Option
 
     # 4) REMOTE_FILES_DOWNLOAD_STATUS (only if update_required)
     # Find latest db key again to download
-    db_name_regexp = re.compile(S3_PREFIX + r"k2_" + db_name + r"_(?P<date>\d{8})\.tar\.gz")
+    db_name_regexp = re.compile(re.escape(S3_PREFIX) + rf"k2_{re.escape(db_name)}_(?P<date>\d{{8}})\.tar\.gz$")
     databases = list_available_databases(S3_BUCKET, S3_PREFIX)
     target_db = find_latest_database(databases, db_name_regexp)
     if not target_db:

@@ -18,6 +18,7 @@ from utils.report import ALL_STEPS, SCHEMA_VERSION, ReportBuilder
 from utils.run_id import generate_run_id
 from utils.setup_logging import _setup_logging
 from utils.updates_helpers import composite_availability_check, file_md5sum
+from utils.generic_helpers import backup_paths, restore_backups, remove_backup_files
 from utils.validation import get_timestamp, verify_expected_files
 
 
@@ -60,40 +61,6 @@ UNIPROT_SPROT_GZ_URL = (
 MANIFEST_FILENAME = "current_version.json"
 
 
-def _backup_paths(paths: List[Path], *, logger) -> List[Tuple[Path, Path]]:
-    """
-    Rename existing files to *.old, returning (original, backup) pairs for restoration.
-    Uses os.replace for atomic rename on the same filesystem.
-    """
-    backups: List[Tuple[Path, Path]] = []
-    for p in paths:
-        if not p.exists():
-            continue
-        bak = Path(str(p) + ".old")
-        try:
-            if bak.exists():
-                bak.unlink()
-        except Exception:
-            # best-effort: if deletion fails, os.replace below will likely fail and we will abort
-            pass
-        logger.info("Backing up existing file: %s -> %s", p, bak)
-        os.replace(p, bak)
-        backups.append((p, bak))
-    return backups
-
-
-def _restore_backups(backups: List[Tuple[Path, Path]], *, logger) -> None:
-    for orig, bak in backups:
-        try:
-            if orig.exists():
-                orig.unlink()
-        except Exception:
-            pass
-        if bak.exists():
-            logger.info("Restoring backup: %s -> %s", bak, orig)
-            os.replace(bak, orig)
-
-
 def _cleanup_paths(paths: List[Path], *, logger) -> None:
     for p in paths:
         try:
@@ -103,15 +70,6 @@ def _cleanup_paths(paths: List[Path], *, logger) -> None:
         except Exception as e:
             logger.warning("Failed to remove %s: %s", p, e)
 
-
-def _remove_backup_files(backups: List[Tuple[Path, Path]], *, logger) -> None:
-    for _orig, bak in backups:
-        try:
-            if bak.exists():
-                logger.info("Removing backup file: %s", bak)
-                bak.unlink()
-        except Exception as e:
-            logger.warning("Failed to remove backup %s: %s", bak, e)
 
 
 def _read_manifest(path: Path) -> Dict[str, Any]:
@@ -539,7 +497,7 @@ def main(
         out_dir / "uniprot" / "uniprot_sprot.fasta.gz",
         out_dir / "uniprot" / "uniprot_sprot.fasta",
     ]
-    backups: List[Tuple[Path, Path]] = _backup_paths(managed_targets, logger=logger)
+    backups: List[Tuple[Path, Path]] = backup_paths(managed_targets, logger)
 
     # 4) REMOTE_FILES_DOWNLOAD_STATUS
     dl, _attempts = download_raw_files(out_dir=out_dir, logger=logger)
@@ -548,7 +506,7 @@ def main(
     if dl["status"] != StatusType.PASSED.value:
         skip_remaining_steps(remaining_steps, "Skipped: failed to download raw files.")
         _cleanup_paths(managed_targets, logger=logger)
-        _restore_backups(backups, logger=logger)
+        restore_backups(backups, logger)
         rb.finalize("FAIL")
         rb.write(str(report_dir / report_file))
         return
@@ -561,7 +519,7 @@ def main(
         skip_remaining_steps(remaining_steps, "Skipped: processing failed.")
         rb.fail(code="PROCESSING_FAILED", message=proc.get("message", ""), retry_recommended=False)
         _cleanup_paths(managed_targets, logger=logger)
-        _restore_backups(backups, logger=logger)
+        restore_backups(backups, logger)
         rb.finalize("FAIL")
         rb.write(str(report_dir / report_file))
         return
@@ -573,7 +531,7 @@ def main(
     if final["status"] != StatusType.PASSED.value:
         rb.fail(code="FINAL_STATUS_FAILED", message=final.get("message", ""), retry_recommended=False)
         _cleanup_paths(managed_targets, logger=logger)
-        _restore_backups(backups, logger=logger)
+        restore_backups(backups, logger)
         rb.finalize("FAIL")
         rb.write(str(report_dir / report_file))
         return
@@ -597,7 +555,7 @@ def main(
         logger.warning("Failed to write manifest %s: %s", manifest_path, e)
 
     # Success: remove backups
-    _remove_backup_files(backups, logger=logger)
+    remove_backup_files(backups, logger)
 
     rb.finalize("PASS")
     rb.write(str(report_dir / report_file))
