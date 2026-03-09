@@ -25,8 +25,8 @@ DATABASE = {"name": "freyja", "category": "viral barcodes"}
 SOURCE = {
     "source_type": "https",
     "reference": "https://github.com/andersen-lab/Freyja-data",
-    # Schema requires minItems=1. For Freyja, "raw" artifacts are the same files
-    # as the final layout consumed by downstream tools.
+    # expected_raw_files: only used to populate the JSON report metadata;
+    # not validated against the filesystem. Schema requires minItems=1.
     "expected_raw_files": [
         "sarscov2/lineages.yml",
         "sarscov2/curated_lineages.json",
@@ -34,6 +34,8 @@ SOURCE = {
         "H1N1/barcode.csv",
         "FLU-B-VIC/barcode.csv",
     ],
+    # expected_processed_files: used by verify_expected_files() in FINAL_STATUS
+    # to confirm the database was successfully downloaded.
     "expected_processed_files": [
         "sarscov2/lineages.yml",
         "sarscov2/curated_lineages.json",
