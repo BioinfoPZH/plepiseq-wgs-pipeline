@@ -712,22 +712,20 @@ def main(
         rb.write(str(report_dir / report_file))
         return
 
-    # MLST-specific postprocessing:
-    #  - trim profiles.list to (1 + number_of_loci) columns
-    #  - create all_allels.fasta for downstream tools expecting a single concatenated file
-    if scheme_kind == "mlst":
-        loci_uris = _read_loci_list(loci_json_path=loci_json_path)
-        loci_count = len(loci_uris)
-        keep_cols = 1 + loci_count if loci_count > 0 else 0
-        if keep_cols > 0:
-            m_trim = _trim_profiles_list_columns(profiles_list_path=profiles_list_path, keep_columns=keep_cols)
-            if m_trim["status"] != StatusType.PASSED.value:
-                rb.add_named_milestone("PROCESSING_STATUS", m_trim)
-                remaining_steps.remove("PROCESSING_STATUS")
-                skip_remaining_steps(remaining_steps, "Skipped: processing failed.")
-                rb.finalize("FAIL")
-                rb.write(str(report_dir / report_file))
-                return
+    # Trim profiles.list to (1 + number_of_loci) columns, stripping metadata
+    # columns (e.g. LINcode, clonal complex) that PubMLST may append.
+    loci_uris = _read_loci_list(loci_json_path=loci_json_path)
+    loci_count = len(loci_uris)
+    keep_cols = 1 + loci_count if loci_count > 0 else 0
+    if keep_cols > 0:
+        m_trim = _trim_profiles_list_columns(profiles_list_path=profiles_list_path, keep_columns=keep_cols)
+        if m_trim["status"] != StatusType.PASSED.value:
+            rb.add_named_milestone("PROCESSING_STATUS", m_trim)
+            remaining_steps.remove("PROCESSING_STATUS")
+            skip_remaining_steps(remaining_steps, "Skipped: processing failed.")
+            rb.finalize("FAIL")
+            rb.write(str(report_dir / report_file))
+            return
 
     # Download allele FASTAs with bounded concurrency (<=4)
     loci_list = _read_loci_list(loci_json_path=loci_json_path)

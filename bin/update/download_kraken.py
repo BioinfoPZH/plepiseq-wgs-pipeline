@@ -16,9 +16,9 @@ import click
 from utils.report import ReportBuilder, ALL_STEPS, SCHEMA_VERSION
 from utils.net import check_url_available, StatusType
 from utils.run_id import generate_run_id
-from utils.validation import verify_expected_files
+from utils.validation import verify_expected_files, get_timestamp
 from utils.setup_logging import _setup_logging
-from utils.generic_helpers import remove_old_workspace, get_timestamp
+from utils.generic_helpers import remove_old_workspace
 from utils.s3_helpers import (
 
     check_s3_connectivity,
