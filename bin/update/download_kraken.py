@@ -9,7 +9,6 @@ import socket
 import logging
 from pathlib import Path
 from typing import Optional
-from datetime import datetime, timezone
 from typing import Dict, Any, Tuple, List
 
 import click
@@ -19,8 +18,7 @@ from utils.net import check_url_available, StatusType
 from utils.run_id import generate_run_id
 from utils.validation import verify_expected_files
 from utils.setup_logging import _setup_logging
-from utils.generic_helpers import remove_old_workspace
-from utils.version_manifest import write_version_manifest
+from utils.generic_helpers import remove_old_workspace, get_timestamp
 from utils.s3_helpers import (
 
     check_s3_connectivity,
@@ -58,10 +56,6 @@ SOURCE = {
                                  "taxo.k2d",
                                  "hash.k2d"],
 }
-
-def get_timestamp() -> str:
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-
 
 def determine_update_status_for_kraken(
     bucket: str,
@@ -444,7 +438,7 @@ def main(local_path: str, db_name: str, workspace: Optional[str], run_id: Option
     logger.info("Starting Kraken2 DB updater (refactored)")
 
     execution_context = {
-        "workspace": f"{workspace}/kraken2" or str(Path.cwd()),
+        "workspace": f"{workspace}/kraken2",
         "user": user or getpass.getuser(),
         "host": host or socket.gethostname(),
         "container_image": container_image,
@@ -564,7 +558,6 @@ def main(local_path: str, db_name: str, workspace: Optional[str], run_id: Option
         rb.write(str(report_dir / report_file))
         return
 
-    write_version_manifest(output_dir / "current_md5.json", _new_md5)
     rb.finalize("PASS")
     rb.write(str(report_dir / report_file))
 

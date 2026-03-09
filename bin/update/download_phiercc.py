@@ -347,7 +347,7 @@ def main(
     logger.info("Starting pHierCC local updater")
 
     execution_context = {
-        "workspace": f"{workspace}/phiercc" or str(Path.cwd()),
+        "workspace": f"{workspace}/phiercc",
         "user": user or getpass.getuser(),
         "host": host or socket.gethostname(),
         "container_image": container_image,

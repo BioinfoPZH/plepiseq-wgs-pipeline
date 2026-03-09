@@ -503,7 +503,7 @@ def main(workspace: str,
 
     ### execution context is dynamic
     execution_context = {
-        "workspace": f"{workspace}/vfdb" or str(Path.cwd()),
+        "workspace": f"{workspace}/vfdb",
         "user": user if user else getpass.getuser(),
         "host": host if host else socket.gethostname(),
         "container_image": container_image,

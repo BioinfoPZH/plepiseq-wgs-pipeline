@@ -80,7 +80,7 @@ def _db_source(db: str) -> Dict[str, Any]:
     repo_page = f"{BITBUCKET_BASE}/{BITBUCKET_ORG}/{db}/"
     expected_processed = EXPECTED_PROCESSED_FILES[db]
     # Schema requires minItems=1 for raw files; keep it lightweight and stable.
-    expected_raw = ["config"] if (Path("config").name) else ["config"]
+    expected_raw = ["config"]
 
     return {
         "source_type": "git",
@@ -436,7 +436,7 @@ def main(
     logger.info("Starting CGE DB updater for %s", db)
 
     execution_context = {
-        "workspace": f"{workspace}/{db}" or str(Path.cwd()),
+        "workspace": f"{workspace}/{db}",
         "user": user if user else getpass.getuser(),
         "host": host if host else socket.gethostname(),
         "container_image": container_image,

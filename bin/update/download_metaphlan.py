@@ -508,7 +508,7 @@ def main(
     auth = (http_user, http_password) if http_user and http_password else None
 
     execution_context = {
-        "workspace": f"{workspace}/{DATABASE['name']}" or str(Path.cwd()),
+        "workspace": f"{workspace}/{DATABASE['name']}",
         "user": user,
         "host": host or socket.gethostname(),
         "container_image": container_image,

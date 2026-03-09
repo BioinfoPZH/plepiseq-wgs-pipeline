@@ -314,7 +314,7 @@ def main(
     logger.info("Starting Freyja DB updater")
 
     execution_context = {
-        "workspace": f"{workspace}/freyja" or str(Path.cwd()),
+        "workspace": f"{workspace}/freyja",
         "user": user if user else getpass.getuser(),
         "host": host if host else socket.gethostname(),
         "container_image": container_image,

@@ -437,7 +437,7 @@ def main(
     logger.info("Starting Nextclade DB updater")
 
     execution_context = {
-        "workspace": f"{workspace}/{DATABASE['name']}" or str(Path.cwd()),
+        "workspace": f"{workspace}/{DATABASE['name']}",
         "user": user if user else getpass.getuser(),
         "host": host if host else socket.gethostname(),
         "container_image": container_image,
