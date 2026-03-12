@@ -1,6 +1,5 @@
 // Viral Pipeline
 // Hostname required by some slurm modules
-params.hostname = "hostname".execute().text.trim()
 
 // // Directory with main repository containing "modules" directory
 params.projectDir = ""

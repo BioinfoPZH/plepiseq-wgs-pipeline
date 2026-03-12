@@ -10,6 +10,8 @@ All notable changes to this project will be documented in this file.
 - Renamed RSV primer schemes (`V0` -> `RSV_WHO-2015`, `V1` -> `RSV_Artic_V1`).
 - Added `UniRef` as a default Influenza primer schema.
 - Shell wrapper now validates that the provided primer scheme matches the selected species.
+- removed hostname from clusterOptions directive in modules running alphafold
+
 
 ## [1.6.0] - 2026-02-28
 ### Changed
