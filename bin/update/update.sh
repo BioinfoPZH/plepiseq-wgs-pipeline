@@ -15,9 +15,16 @@
 
 # This script is intended as an updater for both "viral" and "bacterial" pipelines
 
-# This script understands 4 positional arguments (database name, type of kraken database, bacterial genus, number of cpus)
+# This script understands 5 positional arguments (database name, type of kraken database, bacterial genus, number of cpus, limit_first_n)
+# limit_first_n is optional and only used by enterobase and pubmlst downloaders for testing (empty = no limit)
 # This script should never be run directly but using a wrapper script update_external_databases.sh
 # All values passed to this script are evaluated by update_external_databases.sh
+
+# Updater execution context (provided by update_external_databases.sh, but keep safe defaults)
+UPDATER_WORKSPACE="${UPDATER_WORKSPACE:-/home/external_databases}"
+UPDATER_CONTAINER_IMAGE="${UPDATER_CONTAINER_IMAGE:-unknown}"
+UPDATER_USER="${UPDATER_USER:-$(id -un)}"
+UPDATER_HOST="${UPDATER_HOST:-$(hostname)}"
 
 
 #############################################
@@ -29,28 +36,11 @@
 ### No differenc in Updating/Downloading  if /home/external_databases/nextclade directory exist, everything inside it will be removed
 
 update_nextclade() {
-    if [ -d "/home/external_databases/nextclade" ]; then
-	rm -rf /home/external_databases/nextclade/*
-    else
-        mkdir /home/external_databases/nextclade
-    fi
-
-    db_path="/home/external_databases/nextclade"
-    # SARS
-    /opt/nextclade/bin/nextclade dataset get --name='sars-cov-2' --output-zip "${db_path}/sars-cov-2.zip"
-    # INFL
-    /opt/nextclade/bin/nextclade dataset get --name='flu_h1n1pdm_ha' --output-zip "${db_path}/H1N1_HA.zip"
-    /opt/nextclade/bin/nextclade dataset get --name='flu_h1n1pdm_na' --output-zip "${db_path}/H1N1_NA.zip"
-    /opt/nextclade/bin/nextclade dataset get --name='flu_h3n2_ha' --output-zip "${db_path}/H3N2_HA.zip"
-    /opt/nextclade/bin/nextclade dataset get --name='flu_h3n2_na' --output-zip "${db_path}/H3N2_NA.zip"
-    /opt/nextclade/bin/nextclade dataset get --name='flu_vic_ha' --output-zip "${db_path}/Victoria_HA.zip"
-    /opt/nextclade/bin/nextclade dataset get --name='flu_vic_na' --output-zip "${db_path}/Victoria_NA.zip"
-    /opt/nextclade/bin/nextclade dataset get --name='flu_yam_ha' --output-zip "${db_path}/Yamagata_HA.zip"
-    # RSV
-    /opt/nextclade/bin/nextclade dataset get --name='rsv_a' --output-zip "${db_path}/RSV_A.zip"
-    /opt/nextclade/bin/nextclade dataset get --name='rsv_b' --output-zip "${db_path}/RSV_B.zip"
-    cd 
-    
+    python3 -u /home/update/download_nextclade.py --workspace "${UPDATER_WORKSPACE}" \
+                                                  --container_image "${UPDATER_CONTAINER_IMAGE}" \
+                                                  --user "${UPDATER_USER}" \
+                                                  --host "${UPDATER_HOST}" \
+                                                  --output_dir /home/external_databases/nextclade
     return $?
 }
 
@@ -58,70 +48,37 @@ update_nextclade() {
 ## No differenc in Updating/Downloading  if /home/external_databases/pangolin directory exist, everything inside it will be removed
 ## --upgrade option in pip had no effect
 update_pangolin() {
-    if [ -d "/home/external_databases/pangolin" ]; then
-        rm -rf /home/external_databases/pangolin/*
-    else 
-        mkdir /home/external_databases/pangolin
-    
-    fi
-
-    pip install --target "/home/external_databases/pangolin" git+https://github.com/cov-lineages/pangolin-data.git
+    python3 -u /home/update/download_pangolin_data.py --workspace "${UPDATER_WORKSPACE}" \
+                                                      --container_image "${UPDATER_CONTAINER_IMAGE}" \
+                                                      --user "${UPDATER_USER}" \
+                                                      --host "${UPDATER_HOST}" \
+                                                      --output_dir /home/external_databases/pangolin
     return $?
 }
 
 # Kraken2
-## For kraken2 there has an update procedure so we do not remove iby default 
-## all the files from /home/external_databases/kraken2
-
 update_kraken2() {
     local kraken2_type=$1
-    if [ ! -d "/home/external_databases/kraken2" ]; then
-	    mkdir /home/external_databases/kraken2
-    fi
 
-    # Scirpt requires two arguments path where data are stored and type of krake database
-    python3 /home/update/kraken_updater.py --local_path /home/external_databases/kraken2 \
-	                                   --db_name "${kraken2_type}"
+
+    python3 -u /home/update/download_kraken.py --local_path /home/external_databases/kraken2 \
+                                               --db_name "${kraken2_type}" \
+                                               --workspace "${UPDATER_WORKSPACE}" \
+                                               --container_image "${UPDATER_CONTAINER_IMAGE}" \
+                                               --user "${UPDATER_USER}" \
+                                               --host "${UPDATER_HOST}"
 
     return $?
 }
 
 # Freyja
-## No update procedure so we remove data if directory is present 
 update_freyja() {
-    if [ -d "/home/external_databases/freyja" ]; then
-	    rm -rf /home/external_databases/freyja/*
-    else
-	    mkdir /home/external_databases/freyja
-    fi
+    python3 -u /home/update/download_freyja.py --workspace "${UPDATER_WORKSPACE}" \
+                                               --container_image "${UPDATER_CONTAINER_IMAGE}" \
+                                               --user "${UPDATER_USER}" \
+                                               --host "${UPDATER_HOST}" \
+                                               --output_dir /home/external_databases/freyja
 
-    cd /home/external_databases/freyja
-
-    mkdir H1N1 H3N2 H5Nx FLU-B-VIC RSVa RSVb sarscov2
-    
-    cd sarscov2
-      wget https://raw.githubusercontent.com/andersen-lab/Freyja-data/main/lineages.yml
-      wget https://raw.githubusercontent.com/andersen-lab/Freyja-data/main/curated_lineages.json
-      wget https://github.com/andersen-lab/Freyja-data/raw/main/usher_barcodes.csv
-    cd ..
-
-    ALL_SPECIES=(H1N1 H3N2 H5Nx FLU-B-VIC RSVa RSVb)
-    for SPECIES in ${ALL_SPECIES[@]}
-    do
-	cd ${SPECIES}
-          wget https://raw.githubusercontent.com/andersen-lab/Freyja-barcodes/refs/heads/main/${SPECIES}/latest/barcode.csv
-          wget https://raw.githubusercontent.com/andersen-lab/Freyja-barcodes/refs/heads/main/${SPECIES}/latest/reference.fasta
-          wget https://raw.githubusercontent.com/andersen-lab/Freyja-barcodes/refs/heads/main/${SPECIES}/latest/auspice_tree.json
-	cd ..
-    done 
-
-    mv FLU-B-VIC Victoria
-    mv RSVa RSV_A
-    mv RSVb RSV_B
-    # Other organisms available in Freyja, but not required in PlEpiSeq.
-    # wget -O MEASLESN450_barcodes.csv https://raw.githubusercontent.com/andersen-lab/Freyja-barcodes/refs/heads/main/MEASLESN450/latest/barcode.csv
-    # wget -O mpox_barcodes.csv https://raw.githubusercontent.com/andersen-lab/Freyja-barcodes/refs/heads/main/MPX/latest/barcode.csv
-    # wget -O MEASLESwholegenome_barcodes.csv https://raw.githubusercontent.com/andersen-lab/Freyja-barcodes/refs/heads/main/MEASLESgenome/latest/barcode.csv
     return $?
 }
 
@@ -131,21 +88,24 @@ update_freyja() {
 ## if local and remote versions of the database are different the script will remove content of output_dir and download 
 ## all the files 
 update_amrfinder() {
-	if [ ! -d "/home/external_databases/amrfinder_plus" ]; then
-		 mkdir /home/external_databases/amrfinder_plus
-	fi
-        python3 /home/update/download_amrfinder.py --output_dir /home/external_databases/amrfinder_plus
+
+        python3 -u /home/update/download_amrfinder.py --workspace "${UPDATER_WORKSPACE}" \
+                                                      --container_image "${UPDATER_CONTAINER_IMAGE}" \
+                                                      --user "${UPDATER_USER}" \
+                                                      --host "${UPDATER_HOST}" \
+                                                      --output_dir /home/external_databases/amrfinder_plus
 
 }
 
 # Metaphlan
 ## Database has an update mechanism and dedicated script
 update_metaphlan() {
-        if [ ! -d "/home/external_databases/metaphlan" ]; then
-                 mkdir /home/external_databases/metaphlan
-        fi
 
-        /home/update/download_metaphlan.sh
+        python3 -u /home/update/download_metaphlan.py --workspace "${UPDATER_WORKSPACE}" \
+                                                      --container_image "${UPDATER_CONTAINER_IMAGE}" \
+                                                      --user "${UPDATER_USER}" \
+                                                      --host "${UPDATER_HOST}" \
+                                                      --output_dir /home/external_databases/metaphlan
 
 }
 
@@ -157,36 +117,49 @@ update_kmerfinder() {
     python3  /home/update/download_kmerfinder_db.py -o /home/external_databases/kmerfinder/
 }
 
-# Generic CGE updater
-## No update mechanism for CGE 
-update_cge() {
-	local db=$1
-	if [ -d "/home/external_databases/${db}" ]; then
-		rm -rf /home/external_databases/${db}/
-	fi
-	cd /home/external_databases
-	git clone https://bitbucket.org/genomicepidemiology/${db}/
-	cd ${db}
-	python3 INSTALL.py /home/kma/kma_index non_interactive >> log 2>&1
+# SpeciesFinder DB (tarball download + extract; always rebuild)
+update_speciesfinder() {
+    python3 -u /home/update/download_speciesfinder_db.py --workspace "${UPDATER_WORKSPACE}" \
+                                                         --container_image "${UPDATER_CONTAINER_IMAGE}" \
+                                                         --user "${UPDATER_USER}" \
+                                                         --host "${UPDATER_HOST}" \
+                                                         --output_dir /home/external_databases/speciesfinder
+    return $?
 }
 
-# MLST db requires binary for kma not kma_interactive  (as of 15.09.2025)
-update_cge_mlstdb() {
+# CGE databases (genomicepidemiology) are updated via a milestone-based python client
+# that uses remote HEAD commit id for update decisions.
+update_cge_db() {
         local db=$1
-        if [ -d "/home/external_databases/${db}" ]; then
-                rm -rf /home/external_databases/${db}/
+        local kma_bin=$2
+
+        if [ -n "${kma_bin}" ]; then
+                python3 -u /home/update/download_cge_db.py --workspace "${UPDATER_WORKSPACE}" \
+                                                           --container_image "${UPDATER_CONTAINER_IMAGE}" \
+                                                           --user "${UPDATER_USER}" \
+                                                           --host "${UPDATER_HOST}" \
+                                                           --db "${db}" \
+                                                           --output_dir "/home/external_databases/${db}" \
+                                                           --kma_binary "${kma_bin}"
+        else
+                python3 -u /home/update/download_cge_db.py --workspace "${UPDATER_WORKSPACE}" \
+                                                           --container_image "${UPDATER_CONTAINER_IMAGE}" \
+                                                           --user "${UPDATER_USER}" \
+                                                           --host "${UPDATER_HOST}" \
+                                                           --db "${db}" \
+                                                           --output_dir "/home/external_databases/${db}"
         fi
-        cd /home/external_databases
-        git clone https://bitbucket.org/genomicepidemiology/${db}/
-        cd ${db}
-        python3 INSTALL.py /home/kma/kma non_interactive >> log 2>&1
 }
 #VFDB
 ## No update
 update_vfdb() {
 	local cpus=$1
-  python3 -u /home/update/download_vfdb.py --output_dir /home/external_databases/vfdb \
-                                            --cpus ${cpus}
+  python3 -u /home/update/download_vfdb.py --workspace "${UPDATER_WORKSPACE}" \
+                                           --container_image "${UPDATER_CONTAINER_IMAGE}" \
+                                           --user "${UPDATER_USER}" \
+                                           --host "${UPDATER_HOST}" \
+                                           --output_dir /home/external_databases/vfdb \
+                                           --cpus ${cpus}
 
 }
 
@@ -199,14 +172,16 @@ update_mlst_campylo() {
 	local directory=${1}
 	local spec=${2}
 	local db=${3}
-	if [ -d ${directory} ]; then
-		rm -f ${directory}/*
-	else
-		mkdir -p ${directory}
-	fi
-	
-	cd ${directory}
-	python3 /home/update/download_mlst_campylobacter.py "${spec}" "${db}" >> log 2>&1
+	python3 -u /home/update/download_cgmlst_pubmlst.py --database "${spec}" \
+	                                                  --scheme_name "${db}" \
+	                                                  --cpus ${cpus} \
+	                                                  --output_dir "${directory}" \
+	                                                  --workspace "${UPDATER_WORKSPACE}" \
+	                                                  --container_image "${UPDATER_CONTAINER_IMAGE}" \
+	                                                  --user "${UPDATER_USER}" \
+	                                                  --host "${UPDATER_HOST}" \
+	                                                  --credentials_file /home/update/credentials.txt \
+	                                                  --download_workers 4
 }
 
 update_mlst() {
@@ -241,11 +216,8 @@ update_mlst() {
 		update_mlst_campylo "/home/external_databases/mlst/Campylobacter/jejuni" "${SPEC}" "MLST"
 
 	elif [ ${genus} == "Salmonella" ]; then
-		if [ -d "/home/external_databases/mlst/Salmonella" ]; then
-                        rm -f /home/external_databases/mlst/Salmonella/*
-                else
-                        mkdir -p /home/external_databases/mlst/Salmonella
-                fi
+		# NOTE: do not wipe this directory – EnteroBase schema downloader uses a local checksum manifest
+		# (enterobase_md5.json) to decide whether an update is required.
 
 		DATABASE="senterica"
                 scheme_name="MLST_Achtman"
@@ -254,15 +226,16 @@ update_mlst() {
                                                                            --scheme_name "${scheme_name}" \
                                                                            --scheme_dir "${scheme_dir}" \
                                                                            --cpus ${cpus} \
-                                                                           --output_dir /home/external_databases/mlst/Salmonella
+                                                                           --output_dir /home/external_databases/mlst/Salmonella \
+                                                                           --workspace "${UPDATER_WORKSPACE}" \
+                                                                           --container_image "${UPDATER_CONTAINER_IMAGE}" \
+                                                                           --user "${UPDATER_USER}" \
+                                                                           --host "${UPDATER_HOST}"
 
 
 	elif [ ${genus} == "Escherichia" ]; then
-		if [ -d "/home/external_databases/mlst/Escherichia" ]; then
-                        rm -f /home/external_databases/mlst/Escherichia/*
-                else
-                        mkdir -p /home/external_databases/mlst/Escherichia
-		fi
+		# NOTE: do not wipe this directory – EnteroBase schema downloader uses a local checksum manifest
+		# (enterobase_md5.json) to decide whether an update is required.
 		DATABASE="ecoli"
                 scheme_name="MLST_Achtman"
                 scheme_dir="Escherichia.Achtman7GeneMLST"
@@ -270,14 +243,14 @@ update_mlst() {
                                                                            --scheme_name "${scheme_name}" \
                                                                            --scheme_dir "${scheme_dir}" \
                                                                            --cpus ${cpus} \
-                                                                           --output_dir /home/external_databases/mlst/Escherichia
+                                                                           --output_dir /home/external_databases/mlst/Escherichia \
+                                                                           --workspace "${UPDATER_WORKSPACE}" \
+                                                                           --container_image "${UPDATER_CONTAINER_IMAGE}" \
+                                                                           --user "${UPDATER_USER}" \
+                                                                           --host "${UPDATER_HOST}"
 
 	elif [ ${genus} == "all" ]; then
-                if [ -d "/home/external_databases/mlst/Salmonella" ]; then
-                        rm -f /home/external_databases/mlst/Salmonella/*
-                else
-                        mkdir -p /home/external_databases/mlst/Salmonella
-                fi
+                # NOTE: do not wipe – keep checksum manifest for incremental updates.
 
 		DATABASE="senterica"
 		scheme_name="MLST_Achtman"
@@ -286,13 +259,12 @@ update_mlst() {
                                                                            --scheme_name "${scheme_name}" \
                                                                            --scheme_dir "${scheme_dir}" \
                                                                            --cpus ${cpus} \
-                                                                           --output_dir /home/external_databases/mlst/Salmonella
+                                                                           --output_dir /home/external_databases/mlst/Salmonella \
+                                                                           --workspace "${UPDATER_WORKSPACE}" \
+                                                                           --container_image "${UPDATER_CONTAINER_IMAGE}" \
+                                                                           --user "${UPDATER_USER}" \
+                                                                           --host "${UPDATER_HOST}"
 
-		if [ -d "/home/external_databases/mlst/Escherichia" ]; then
-                        rm -f /home/external_databases/mlst/Escherichia/*
-                else
-                        mkdir -p /home/external_databases/mlst/Escherichia
-                fi
 		DATABASE="ecoli"
 		scheme_name="MLST_Achtman" 
 		scheme_dir="Escherichia.Achtman7GeneMLST"
@@ -301,7 +273,11 @@ update_mlst() {
                                                                            --scheme_name "${scheme_name}" \
                                                                            --scheme_dir "${scheme_dir}" \
                                                                            --cpus ${cpus} \
-                                                                           --output_dir /home/external_databases/mlst/Escherichia
+                                                                           --output_dir /home/external_databases/mlst/Escherichia \
+                                                                           --workspace "${UPDATER_WORKSPACE}" \
+                                                                           --container_image "${UPDATER_CONTAINER_IMAGE}" \
+                                                                           --user "${UPDATER_USER}" \
+                                                                           --host "${UPDATER_HOST}"
 
 		if [ ! -d "/home/external_databases/mlst/Campylobacter" ]; then
                         mkdir -p /home/external_databases/mlst/Campylobacter
@@ -341,24 +317,22 @@ update_cgmlst() {
 	local genus=$1
 	local cpus=$2 
 	if [ ${genus} == "Campylobacter" ]; then
-		if [ -d "/home/external_databases/cgmlst/Campylobacter/jejuni" ]; then
-                        rm -f /home/external_databases/cgmlst/Campylobacter/jejuni/*
-                else
-                        mkdir -p /home/external_databases/cgmlst/Campylobacter/jejuni/
-                fi
 		DATABASE="pubmlst_campylobacter_seqdef"
 		schema_name="C. jejuni / C. coli cgMLST v2"
-		python3 /home/update/download_cgmlst_pubmlst.py --database "${DATABASE}" \
-			                                        --scheme_name "${schema_name}" \
-						                --cpus ${cpus} \
-						                --output_dir /home/external_databases/cgmlst/Campylobacter/jejuni/
+		python3 -u /home/update/download_cgmlst_pubmlst.py --database "${DATABASE}" \
+			                                           --scheme_name "${schema_name}" \
+						                   --cpus ${cpus} \
+						                   --output_dir /home/external_databases/cgmlst/Campylobacter/jejuni/ \
+						                   --workspace "${UPDATER_WORKSPACE}" \
+						                   --container_image "${UPDATER_CONTAINER_IMAGE}" \
+						                   --user "${UPDATER_USER}" \
+						                   --host "${UPDATER_HOST}" \
+						                   --credentials_file /home/update/credentials.txt \
+						                   --download_workers 4
 
 	elif [ ${genus} == "Salmonella" ]; then
-                if [ -d "/home/external_databases/cgmlst/Salmonella" ]; then
-                        rm -f /home/external_databases/cgmlst/Salmonella/*
-                else
-                        mkdir -p /home/external_databases/cgmlst/Salmonella
-                fi
+                # NOTE: do not wipe this directory – EnteroBase schema downloader uses a local checksum manifest
+                # (enterobase_md5.json) to decide whether an update is required.
 		DATABASE="senterica"
 		scheme_name="cgMLST_v2"
 		scheme_dir="Salmonella.cgMLSTv2"
@@ -366,13 +340,14 @@ update_cgmlst() {
 			                                                   --scheme_name "${scheme_name}" \
 								           --scheme_dir "${scheme_dir}" \
 								           --cpus ${cpus} \
-								           --output_dir /home/external_databases/cgmlst/Salmonella
+								           --output_dir /home/external_databases/cgmlst/Salmonella \
+                                                                           --workspace "${UPDATER_WORKSPACE}" \
+                                                                           --container_image "${UPDATER_CONTAINER_IMAGE}" \
+                                                                           --user "${UPDATER_USER}" \
+                                                                           --host "${UPDATER_HOST}"
         elif [ ${genus} == "Escherichia" ]; then
-                if [ -d "/home/external_databases/cgmlst/Escherichia" ]; then
-                        rm -f /home/external_databases/cgmlst/Escherichia/*
-                else
-                        mkdir -p /home/external_databases/cgmlst/Escherichia
-                fi
+                # NOTE: do not wipe this directory – EnteroBase schema downloader uses a local checksum manifest
+                # (enterobase_md5.json) to decide whether an update is required.
 		DATABASE="ecoli"
 		scheme_name="cgMLST" 
 		scheme_dir="Escherichia.cgMLSTv1"
@@ -380,14 +355,14 @@ update_cgmlst() {
                                                                            --scheme_name "${scheme_name}" \
                                                                            --scheme_dir "${scheme_dir}" \
                                                                            --cpus ${cpus} \
-								           --output_dir /home/external_databases/cgmlst/Escherichia
+								           --output_dir /home/external_databases/cgmlst/Escherichia \
+                                                                           --workspace "${UPDATER_WORKSPACE}" \
+                                                                           --container_image "${UPDATER_CONTAINER_IMAGE}" \
+                                                                           --user "${UPDATER_USER}" \
+                                                                           --host "${UPDATER_HOST}"
         elif [ ${genus} == "all" ]; then
 		echo "Downloading data for Escherichia at: $(date +"%H:%M %d-%m-%Y")" >> log
-		if [ -d "/home/external_databases/cgmlst/Escherichia" ]; then
-                        rm -f /home/external_databases/cgmlst/Escherichia/*
-                else
-                        mkdir -p /home/external_databases/cgmlst/Escherichia
-                fi
+		# NOTE: do not wipe – keep checksum manifest for incremental updates.
                 DATABASE="ecoli"
                 scheme_name="cgMLST"
                 scheme_dir="Escherichia.cgMLSTv1"
@@ -395,13 +370,13 @@ update_cgmlst() {
                                                                            --scheme_name "${scheme_name}" \
                                                                            --scheme_dir "${scheme_dir}" \
                                                                            --cpus ${cpus} \
-                                                                           --output_dir /home/external_databases/cgmlst/Escherichia	
+                                                                           --output_dir /home/external_databases/cgmlst/Escherichia \
+                                                                           --workspace "${UPDATER_WORKSPACE}" \
+                                                                           --container_image "${UPDATER_CONTAINER_IMAGE}" \
+                                                                           --user "${UPDATER_USER}" \
+                                                                           --host "${UPDATER_HOST}"	
 		echo "Downloading data for Salmonella at: $(date +"%H:%M %d-%m-%Y")" >> log
-		if [ -d "/home/external_databases/cgmlst/Salmonella" ]; then
-                        rm -f /home/external_databases/cgmlst/Salmonella/*
-                else
-                        mkdir -p /home/external_databases/cgmlst/Salmonella
-                fi
+		# NOTE: do not wipe – keep checksum manifest for incremental updates.
                 DATABASE="senterica"
                 scheme_name="cgMLST_v2"
                 scheme_dir="Salmonella.cgMLSTv2"
@@ -409,60 +384,90 @@ update_cgmlst() {
 			                                                   --scheme_name "${scheme_name}" \
 								           --scheme_dir "${scheme_dir}" \
 								           --cpus ${cpus} \
-								           --output_dir /home/external_databases/cgmlst/Salmonella
+								           --output_dir /home/external_databases/cgmlst/Salmonella \
+                                                                           --workspace "${UPDATER_WORKSPACE}" \
+                                                                           --container_image "${UPDATER_CONTAINER_IMAGE}" \
+                                                                           --user "${UPDATER_USER}" \
+                                                                           --host "${UPDATER_HOST}"
 
 		echo "Downloading data for Campylobacter at: $(date +"%H:%M %d-%m-%Y")" >> log
-		if [ -d "/home/external_databases/cgmlst/Campylobacter/jejuni" ]; then
-                        rm -f /home/external_databases/cgmlst/Campylobacter/jejuni/*
-                else
-                        mkdir -p /home/external_databases/cgmlst/Campylobacter/jejuni/
-                fi
 		DATABASE="pubmlst_campylobacter_seqdef"
                 schema_name="C. jejuni / C. coli cgMLST v2"
-                python3 /home/update/download_cgmlst_pubmlst.py --database "${DATABASE}" \
-                                                                --scheme_name "${schema_name}" \
-                                                                --cpus ${cpus} \
-                                                                --output_dir /home/external_databases/cgmlst/Campylobacter/jejuni/
+                python3 -u /home/update/download_cgmlst_pubmlst.py --database "${DATABASE}" \
+                                                                   --scheme_name "${schema_name}" \
+                                                                   --cpus ${cpus} \
+                                                                   --output_dir /home/external_databases/cgmlst/Campylobacter/jejuni/ \
+                                                                   --workspace "${UPDATER_WORKSPACE}" \
+                                                                   --container_image "${UPDATER_CONTAINER_IMAGE}" \
+                                                                   --user "${UPDATER_USER}" \
+                                                                   --host "${UPDATER_HOST}" \
+                                                                   --credentials_file /home/update/credentials.txt \
+                                                                   --download_workers 4
 	fi
 }
 
-# Downloading data regarding known strains from enterobase
-## There is an update mechanism so we do not remove files
+# Downloading data regarding known strains from enterobase, there is no update, but new data are appended to existing files
 update_enterobase() {
 	local genus=${1}
+	# limit_first_n comes from the 5th positional argument (set at script level)
+	# useful only for manual testing; empty on production runs
+	local limit_args=()
+	if [ -n "${limit_first_n}" ]; then
+		limit_args=(--limit_first_n "${limit_first_n}")
+	fi
 
 	if [ ${genus} == "Escherichia" ]; then
-                if [ ! -d "/home/external_databases/enterobase/Escherichia" ]; then
-			mkdir -p /home/external_databases/enterobase/Escherichia
-                fi
-		cd /home/external_databases/enterobase/Escherichia
+
 		DATABASE="ecoli" 
 		CGNAME="cgMLST" 
-		python3 -u /home/update/download_enterobase_data.py "${DATABASE}" "${CGNAME}" >> log 2>&1
+		python3 -u /home/update/download_enterobase_data.py --database "${DATABASE}" \
+								    --cgname "${CGNAME}" \
+								    --credentials_file /home/update/credentials.txt \
+								    --output_dir /home/external_databases/enterobase/Escherichia \
+								    --workspace "${UPDATER_WORKSPACE}" \
+								    --container_image "${UPDATER_CONTAINER_IMAGE}" \
+								    --user "${UPDATER_USER}" \
+								    --host "${UPDATER_HOST}" \
+								    "${limit_args[@]}"
         elif [ ${genus} == "Salmonella" ]; then
-		if [ ! -d "/home/external_databases/enterobase/Salmonella" ]; then
-                        mkdir -p /home/external_databases/enterobase/Salmonella
-                fi
-                cd /home/external_databases/enterobase/Salmonella
+
 		DATABASE="senterica" 
 		CGNAME="cgMLST_v2" 
-		python3 -u /home/update/download_enterobase_data.py "${DATABASE}" "${CGNAME}" >> log 2>&1
+		python3 -u /home/update/download_enterobase_data.py --database "${DATABASE}" \
+								    --cgname "${CGNAME}" \
+								    --credentials_file /home/update/credentials.txt \
+								    --output_dir /home/external_databases/enterobase/Salmonella \
+								    --workspace "${UPDATER_WORKSPACE}" \
+								    --container_image "${UPDATER_CONTAINER_IMAGE}" \
+								    --user "${UPDATER_USER}" \
+								    --host "${UPDATER_HOST}" \
+								    "${limit_args[@]}"
 	elif [[ ${genus} == "all" || ${genus} == "Campylobacter" ]]; then
-		if [ ! -d "/home/external_databases/enterobase/Escherichia" ]; then
-                        mkdir -p /home/external_databases/enterobase/Escherichia
-                fi
-                cd /home/external_databases/enterobase/Escherichia
+
                 DATABASE="ecoli"
                 CGNAME="cgMLST"
-                python3 -u /home/update/download_enterobase_data.py "${DATABASE}" "${CGNAME}" >> log 2>&1
+                python3 -u /home/update/download_enterobase_data.py --database "${DATABASE}" \
+                                                                    --cgname "${CGNAME}" \
+                                                                    --credentials_file /home/update/credentials.txt \
+                                                                    --output_dir /home/external_databases/enterobase/Escherichia \
+                                                                    --workspace "${UPDATER_WORKSPACE}" \
+                                                                    --container_image "${UPDATER_CONTAINER_IMAGE}" \
+                                                                    --user "${UPDATER_USER}" \
+                                                                    --host "${UPDATER_HOST}" \
+                                                                    "${limit_args[@]}"
 
-		if [ ! -d "/home/external_databases/enterobase/Salmonella" ]; then
-                        mkdir -p /home/external_databases/enterobase/Salmonella
-                fi
-                cd /home/external_databases/enterobase/Salmonella
+
                 DATABASE="senterica"
                 CGNAME="cgMLST_v2"
-                python3 -u /home/update/download_enterobase_data.py "${DATABASE}" "${CGNAME}" >> log 2>&1
+                python3 -u /home/update/download_enterobase_data.py --database "${DATABASE}" \
+                                                                    --cgname "${CGNAME}" \
+                                                                    --credentials_file /home/update/credentials.txt \
+                                                                    --output_dir /home/external_databases/enterobase/Salmonella \
+                                                                    --workspace "${UPDATER_WORKSPACE}" \
+                                                                    --container_image "${UPDATER_CONTAINER_IMAGE}" \
+                                                                    --user "${UPDATER_USER}" \
+                                                                    --host "${UPDATER_HOST}" \
+                                                                    "${limit_args[@]}"
 	fi
 
 }
@@ -472,12 +477,23 @@ update_enterobase() {
 
 update_pubmlst() {
 	local cpus=${1}
-	if [ ! -d "/home/external_databases/pubmlst/Campylobacter/jejuni" ]; then
-		mkdir -p /home/external_databases/pubmlst/Campylobacter/jejuni
+	# limit_first_n comes from the 5th positional argument (set at script level)
+	# useful only for manual testing; empty on production runs
+	local limit_args=()
+	if [ -n "${limit_first_n}" ]; then
+		limit_args=(--limit_first_n "${limit_first_n}")
 	fi
-	cd /home/external_databases/pubmlst/Campylobacter/jejuni
-	python3 -u /home/update/download_pubmlst_data.py ${cpus} >> log 2>&1
 
+	python3 -u /home/update/download_pubmlst_data.py \
+		--output_dir /home/external_databases/pubmlst/Campylobacter/jejuni \
+		--download_workers ${cpus} \
+		--workspace "${UPDATER_WORKSPACE}" \
+		--container_image "${UPDATER_CONTAINER_IMAGE}" \
+		--user "${UPDATER_USER}" \
+		--host "${UPDATER_HOST}" \
+		--credentials_file /home/update/credentials.txt \
+		"${limit_args[@]}" \
+		>> /dev/null 2>&1
 }
 
 
@@ -485,107 +501,25 @@ update_pubmlst() {
 ## No update mechanism so we donload again files
 update_phiercc() {
 	local genus=${1}
-	if [ ${genus} == "Campylobacter" ]; then
-		if [ -d "/home/external_databases/phiercc_local/Campylobacter/jejuni" ]; then
-			rm -rf /home/external_databases/phiercc_local/Campylobacter/jejuni/*
-		else
-			mkdir -p /home/external_databases/phiercc_local/Campylobacter/jejuni/
-		fi
-		cd /home/external_databases/phiercc_local/Campylobacter/jejuni/
-                
-		wget https://github.com/michallaz/phiercc_pzh_mod/raw/refs/heads/main/plepiseq_data/Campylobacter/profile_complete_linkage.HierCC.gz
-		wget https://github.com/michallaz/phiercc_pzh_mod/raw/refs/heads/main/plepiseq_data/Campylobacter/profile_complete_linkage.HierCC.index
-		wget https://github.com/michallaz/phiercc_pzh_mod/raw/refs/heads/main/plepiseq_data/Campylobacter/profile_single_linkage.HierCC.gz
-		wget https://github.com/michallaz/phiercc_pzh_mod/raw/refs/heads/main/plepiseq_data/Campylobacter/profile_single_linkage.HierCC.index
-
-	elif [ ${genus} == "Escherichia" ]; then
-		if [ -d "/home/external_databases/phiercc_local/Escherichia" ]; then
-                        rm -rf /home/external_databases/phiercc_local/Escherichia/*
-		else
-			mkdir -p /home/external_databases/phiercc_local/Escherichia
-		fi
-		cd /home/external_databases/phiercc_local/Escherichia
-		
-		wget https://github.com/michallaz/phiercc_pzh_mod/raw/refs/heads/main/plepiseq_data/Escherichia/profile_single_linkage.HierCC.gz
-		wget https://github.com/michallaz/phiercc_pzh_mod/raw/refs/heads/main/plepiseq_data/Escherichia/profile_single_linkage.HierCC.index
-		wget https://github.com/michallaz/phiercc_pzh_mod/raw/refs/heads/main/plepiseq_data/Escherichia/profile_complete_linkage.HierCC.gz
-		wget https://github.com/michallaz/phiercc_pzh_mod/raw/refs/heads/main/plepiseq_data/Escherichia/profile_complete_linkage.HierCC.index
-
-	elif [ ${genus} == "Salmonella" ]; then
-		if [ -d "/home/external_databases/phiercc_local/Salmonella" ]; then
-			rm -rf /home/external_databases/phiercc_local/Salmonella/*
-		else
-			mkdir -p /home/external_databases/phiercc_local/Salmonella
-		fi
-		cd /home/external_databases/phiercc_local/Salmonella
-		wget https://github.com/michallaz/phiercc_pzh_mod/raw/refs/heads/main/plepiseq_data/Salmonella/profile_complete_linkage.HierCC.gz
-		wget https://github.com/michallaz/phiercc_pzh_mod/raw/refs/heads/main/plepiseq_data/Salmonella/profile_complete_linkage.HierCC.index
-		wget https://github.com/michallaz/phiercc_pzh_mod/raw/refs/heads/main/plepiseq_data/Salmonella/profile_single_linkage.HierCC.gz
-		wget https://github.com/michallaz/phiercc_pzh_mod/raw/refs/heads/main/plepiseq_data/Salmonella/profile_single_linkage.HierCC.index
-	
-	
-	elif [ ${genus} == "all" ]; then
-		if [ -d "/home/external_databases/phiercc_local/Salmonella" ]; then
-                        rm -rf /home/external_databases/phiercc_local/Salmonella/*
-                else
-                        mkdir -p /home/external_databases/phiercc_local/Salmonella
-                fi
-
-		cd /home/external_databases/phiercc_local/Salmonella
-
-		wget https://github.com/michallaz/phiercc_pzh_mod/raw/refs/heads/main/plepiseq_data/Salmonella/profile_complete_linkage.HierCC.gz
-                wget https://github.com/michallaz/phiercc_pzh_mod/raw/refs/heads/main/plepiseq_data/Salmonella/profile_complete_linkage.HierCC.index
-                wget https://github.com/michallaz/phiercc_pzh_mod/raw/refs/heads/main/plepiseq_data/Salmonella/profile_single_linkage.HierCC.gz
-                wget https://github.com/michallaz/phiercc_pzh_mod/raw/refs/heads/main/plepiseq_data/Salmonella/profile_single_linkage.HierCC.index
-
-		if [ -d "/home/external_databases/phiercc_local/Escherichia" ]; then
-                        rm -rf /home/external_databases/phiercc_local/Escherichia/*
-                else
-                        mkdir -p /home/external_databases/phiercc_local/Escherichia
-                fi
-                cd /home/external_databases/phiercc_local/Escherichia
-
-		wget https://github.com/michallaz/phiercc_pzh_mod/raw/refs/heads/main/plepiseq_data/Escherichia/profile_single_linkage.HierCC.gz
-                wget https://github.com/michallaz/phiercc_pzh_mod/raw/refs/heads/main/plepiseq_data/Escherichia/profile_single_linkage.HierCC.index
-                wget https://github.com/michallaz/phiercc_pzh_mod/raw/refs/heads/main/plepiseq_data/Escherichia/profile_complete_linkage.HierCC.gz
-                wget https://github.com/michallaz/phiercc_pzh_mod/raw/refs/heads/main/plepiseq_data/Escherichia/profile_complete_linkage.HierCC.index
-
-		if [ -d "/home/external_databases/phiercc_local/Campylobacter/jejuni" ]; then
-			rm -rf /home/external_databases/phiercc_local/Campylobacter/jejuni/*
-		else
-			mkdir -p /home/external_databases/phiercc_local/Campylobacter/jejuni/
-		fi
-		cd /home/external_databases/phiercc_local/Campylobacter/jejuni/
-
-		wget https://github.com/michallaz/phiercc_pzh_mod/raw/refs/heads/main/plepiseq_data/Campylobacter/profile_complete_linkage.HierCC.gz
-                wget https://github.com/michallaz/phiercc_pzh_mod/raw/refs/heads/main/plepiseq_data/Campylobacter/profile_complete_linkage.HierCC.index
-                wget https://github.com/michallaz/phiercc_pzh_mod/raw/refs/heads/main/plepiseq_data/Campylobacter/profile_single_linkage.HierCC.gz
-                wget https://github.com/michallaz/phiercc_pzh_mod/raw/refs/heads/main/plepiseq_data/Campylobacter/profile_single_linkage.HierCC.index
-
-	fi
+	python3 -u /home/update/download_phiercc.py \
+		--workspace "${UPDATER_WORKSPACE}" \
+		--container_image "${UPDATER_CONTAINER_IMAGE}" \
+		--user "${UPDATER_USER}" \
+		--host "${UPDATER_HOST}" \
+		--genus "${genus}" \
+		--output_dir "/home/external_databases/phiercc_local"
 }
 
 # Uniref50 and Uniref50 for Virual sequences used by alphafold
-## No update mechanism
+## Uses milestone-based python client (selective updates; does NOT wipe other AlphaFold assets)
 update_alphafold() {
-	if [ -d "/home/external_databases/alphafold/uniref50" ]; then
-		rm -rf /home/external_databases/alphafold/uniref50/*
-	else
-		mkdir -p /home/external_databases/alphafold/uniref50/
-	fi
-	
-	wget -O /home/external_databases/alphafold/uniref50/uniref50_viral.fasta "https://rest.uniprot.org/uniref/stream?format=fasta&query=%28%28taxonomy_id%3A10239%29+AND+%28identity%3A0.5%29%29"
-	wget -O /home/external_databases/alphafold/uniref50/uniref50.fasta.gz https://ftp.uniprot.org/pub/databases/uniprot/uniref/uniref50/uniref50.fasta.gz
-	gunzip /home/external_databases/alphafold/uniref50/uniref50.fasta.gz
-
-	if [ -d "/home/external_databases/alphafold/uniprot" ]; then
-                rm -rf /home/external_databases/alphafold/uniprot/uniprot_sprot.fasta
-        else
-                mkdir -p /home/external_databases/alphafold/uniprot
-        fi
-
-	wget -O /home/external_databases/alphafold/uniprot/uniprot_sprot.fasta.gz "https://ftp.uniprot.org/pub/databases/uniprot/current_release/knowledgebase/complete/uniprot_sprot.fasta.gz"
-	gunzip /home/external_databases/alphafold/uniprot/uniprot_sprot.fasta.gz
+	python3 -u /home/update/download_alphafold.py \
+		--workspace "${UPDATER_WORKSPACE}" \
+		--container_image "${UPDATER_CONTAINER_IMAGE}" \
+		--user "${UPDATER_USER}" \
+		--host "${UPDATER_HOST}" \
+		--output_dir "/home/external_databases/alphafold"
+	return $?
 }
 #############
 # Main code *
@@ -596,6 +530,31 @@ db_name=$1
 kraken_type=$2
 genus=$3
 cpus=$4
+limit_first_n=${5:-}  # optional: limit records for enterobase/pubmlst (empty = no limit)
+
+# -------------------------
+# Metadata for Python clients
+# -------------------------
+# These values are used by click-based downloaders (VFDB/Kraken) for report metadata.
+# Prefer values passed in from update_external_databases.sh (outer caller),
+# otherwise fall back to container-derived defaults.
+UPDATER_WORKSPACE="${UPDATER_WORKSPACE:-/home/update}"
+UPDATER_CONTAINER_IMAGE="${UPDATER_CONTAINER_IMAGE:-plepiseq-wgs-pipeline-updater:latest}"
+UPDATER_USER="${UPDATER_USER:-}"
+UPDATER_HOST="${UPDATER_HOST:-}"
+
+if [ -z "${UPDATER_USER}" ]; then
+    _u="$(id -un 2>/dev/null || true)"
+    if [ -z "${_u}" ] || [ "${_u}" == "unknown" ]; then
+        UPDATER_USER="uid_$(id -u)"
+    else
+        UPDATER_USER="${_u}"
+    fi
+fi
+
+if [ -z "${UPDATER_HOST}" ]; then
+    UPDATER_HOST="$(hostname -f 2>/dev/null || hostname)"
+fi
 
 if [ ${db_name} == "all" ];then
         echo "Downloading data for kraken2 at: $(date +"%H:%M %d-%m-%Y")"
@@ -613,19 +572,21 @@ if [ ${db_name} == "all" ];then
 	echo "Downloading data for metaphlan at: $(date +"%H:%M %d-%m-%Y")"
 	update_metaphlan >> /dev/null 2>&1
 	echo "Downloading data for pointfinder at: $(date +"%H:%M %d-%m-%Y")"
-	update_cge pointfinder_db >> /dev/null 2>&1
+	update_cge_db pointfinder_db >> /dev/null 2>&1
 	echo "Downloading data for disinfinder at: $(date +"%H:%M %d-%m-%Y")"
-	update_cge disinfinder_db >> /dev/null 2>&1
+	update_cge_db disinfinder_db >> /dev/null 2>&1
 	echo "Downloading data for mlst_db at: $(date +"%H:%M %d-%m-%Y")"
-	update_cge_mlstdb mlst_db >> /dev/null 2>&1
+	update_cge_db mlst_db "/home/kma/kma" >> /dev/null 2>&1
 	echo "Downloading data for plasmidfinder at: $(date +"%H:%M %d-%m-%Y")"
-	update_cge plasmidfinder_db >> /dev/null 2>&1
+	update_cge_db plasmidfinder_db >> /dev/null 2>&1
 	echo "Downloading data for resfinder at: $(date +"%H:%M %d-%m-%Y")"
-	update_cge resfinder_db >> /dev/null 2>&1
+	update_cge_db resfinder_db >> /dev/null 2>&1
 	echo "Downloading data for spifinder at: $(date +"%H:%M %d-%m-%Y")"
-	update_cge spifinder_db >> /dev/null 2>&1
+	update_cge_db spifinder_db >> /dev/null 2>&1
+	echo "Downloading data for speciesfinder at: $(date +"%H:%M %d-%m-%Y")"
+	update_speciesfinder >> /dev/null 2>&1
 	echo "Downloading data for virulencefinder at: $(date +"%H:%M %d-%m-%Y")"
-	update_cge virulencefinder_db >> /dev/null 2>&1
+	update_cge_db virulencefinder_db >> /dev/null 2>&1
 	echo "Downloading data for vfcb at: $(date +"%H:%M %d-%m-%Y")"
 	update_vfdb ${cpus}
 	echo "Downloading MLST data at: $(date +"%H:%M %d-%m-%Y")"
@@ -655,19 +616,21 @@ elif [ ${db_name} == "kmerfinder" ]; then
 elif [ ${db_name} == "metaphlan" ]; then
         update_metaphlan >> /dev/null 2>&1 
 elif [ ${db_name} == "pointfinder" ]; then
-        update_cge pointfinder_db >> /dev/null 2>&1
+        update_cge_db pointfinder_db >> /dev/null 2>&1
 elif [ ${db_name} == "disinfinder" ]; then
-        update_cge disinfinder_db >> /dev/null 2>&1
+        update_cge_db disinfinder_db >> /dev/null 2>&1
 elif [ ${db_name} == "mlstfinder" ]; then
-        update_cge_mlstdb mlst_db >> /dev/null 2>&1
+        update_cge_db mlst_db "/home/kma/kma" >> /dev/null 2>&1
 elif [ ${db_name} == "plasmidfinder" ]; then
-        update_cge plasmidfinder_db >> /dev/null 2>&1
+        update_cge_db plasmidfinder_db >> /dev/null 2>&1
 elif [ ${db_name} == "resfinder" ]; then
-        update_cge resfinder_db >> /dev/null 2>&1
+        update_cge_db resfinder_db >> /dev/null 2>&1
 elif [ ${db_name} == "spifinder" ]; then
-        update_cge spifinder_db >> /dev/null 2>&1
+        update_cge_db spifinder_db >> /dev/null 2>&1
+elif [ ${db_name} == "speciesfinder" ]; then
+        update_speciesfinder >> /dev/null 2>&1
 elif [ ${db_name} == "virulencefinder" ]; then
-        update_cge virulencefinder_db >> /dev/null 2>&1
+        update_cge_db virulencefinder_db >> /dev/null 2>&1
 elif [ ${db_name} == "vfdb" ]; then
 	update_vfdb ${cpus} >> /dev/null 2>&1 
 elif [ ${db_name} == "mlst" ]; then
@@ -677,7 +640,7 @@ elif [ ${db_name} == "cgmlst" ]; then
 elif [ ${db_name} == "pubmlst" ]; then
 	update_pubmlst ${cpus} >> /dev/null 2>&1
 elif [ ${db_name} == "enterobase" ]; then
-	update_enterobase ${genus}
+	update_enterobase ${genus} >> /dev/null 2>&1
 elif [ ${db_name} == "phiercc" ]; then
 	update_phiercc ${genus} >> /dev/null 2>&1
 elif [ ${db_name} == "alphafold" ]; then

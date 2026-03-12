@@ -19,17 +19,19 @@ genus="all" #  name of the genus for which database is updated, only valid if ml
 output=""  #  top-level directory with databases, each database will be a subdirectory of it, hierarchy of databases in that directory is PREDEFINED
 image_name="plepiseq-wgs-pipeline-updater:latest" #  name of the image within which all updates are performed
 cpus=1
+limit_first_n="" # optional: limit number of records downloaded (for enterobase and pubmlst testing)
+credentials_file="" # path to key=value credentials file on host; required for enterobase, pubmlst, cgmlst, mlst, and all
 
 # Function to display help message
 function show_help() {
-    echo "Usage: $0 --database <string> --output <path> --image_name <string> [--cpus <int> --kraken-type <type> --genus <Salmonella|Escherichia|Campylobacter|all>]"
+    echo "Usage: $0 --database <string> --output <path> --image_name <string> [--cpus <int> --kraken_type <type> --genus <Salmonella|Escherichia|Campylobacter|all> --limit_first_n <int>] [--credentials_file <path>]"
     echo
     echo "Options:"
     echo "  --database      Name of the database to download or update"
     echo "                  Nazwa bazy do pobrania/aktualizacji. Mozliwe opcje to:"
     echo "                  amrfinder_plus mlst cgmlst disinfinder resfinder vfdb enterobase"
     echo "                  kmerfinder metaphlan phiercc pubmlst pointfinder plasmidfinder virulencefinder"
-    echo "                  spifinder mlstfinder pangolin nextclade kraken2 freyja alphafold all"
+    echo "                  spifinder speciesfinder mlstfinder pangolin nextclade kraken2 freyja alphafold all"
     echo "  --output        Path to save the downloaded database. Each database is placed in a separete subdirectory"
     echo "                  Sciezka do katalogu z bazami, dla kazdej bazy zostanie stworzony wlasny podkatalog "
     echo "  --image_name    Full name of the docker image (with tag) used for updates"
@@ -42,9 +44,20 @@ function show_help() {
     echo "  --genus         Name of a genus (valid only for mlst, cgmlst, and enterobase databases). If not provided database is downloaded for all three genuses"
     echo "                  Nazwa rodzaju bakterii dla ktorego pobierana jest baza (tylko w przypadku baz mlst, cgmls oraz enterobase). Mozliwe wartosci to:"
     echo "                  Salmonella Escherichia Campylobacter all"
+    echo "  --limit_first_n  Optional: limit number of records downloaded per data source (valid for enterobase and pubmlst)."
+    echo "                   Useful for testing without downloading the full dataset."
+    echo "                   For pubmlst: timestamp is NOT advanced when limit truncates records, so remaining"
+    echo "                   records will still be available on the next run. Remove the limit for a full sync."
+    echo "                   For enterobase: only first N strains from remote list are considered; re-run without"
+    echo "                   the limit to pick up the rest."
+    echo "Conditionally required arguments:"
+    echo "  --credentials_file    Path to key=value credentials file on host"
+    echo "                        REQUIRED when --database is one of: enterobase, pubmlst, cgmlst, mlst, all."
+    echo "                        The file is mounted read-only into the container."
+    echo "                        See sample_credentials.txt for the expected format."
 }
 
-OPTIONS=$(getopt -o h --long database:,output:,cpus:,image_name:,kraken_type:,genus:,help -- "$@")
+OPTIONS=$(getopt -o h --long database:,output:,cpus:,image_name:,kraken_type:,genus:,limit_first_n:,credentials_file:,help -- "$@")
 
 eval set -- "$OPTIONS"
 
@@ -81,6 +94,14 @@ while true; do
             genus="$2"
             shift 2
             ;;
+        --limit_first_n)
+            limit_first_n="$2"
+            shift 2
+            ;;
+        --credentials_file)
+            credentials_file="$2"
+            shift 2
+            ;;
         -h|--help)
             show_help
             exit 0
@@ -100,7 +121,7 @@ done
 
 # Check if a user provided a correct database to download/update
 CORRECT_DB=0
-ALL_DB=(amrfinder_plus mlst cgmlst cgmlstfinder, disinfinder resfinder vfdb enterobase kmerfinder metaphlan phiercc pubmlst pointfinder plasmidfinder virulencefinder spifinder mlstfinder pangolin nextclade kraken2 freyja alphafold all)
+ALL_DB=(amrfinder_plus mlst cgmlst disinfinder resfinder vfdb enterobase kmerfinder metaphlan phiercc pubmlst pointfinder plasmidfinder virulencefinder spifinder speciesfinder mlstfinder pangolin nextclade kraken2 freyja alphafold all)
 for var in ${ALL_DB[@]}; do
     if [ ${database} == ${var} ];then
            CORRECT_DB=1
@@ -175,6 +196,26 @@ if [[ "$cpus" -le 0 || "$cpus" -gt "$(nproc)" ]]; then
        exit 1
 fi       
 
+## Validate limit_first_n if provided (must be a positive integer, only valid for enterobase and pubmlst)
+if [[ -n "$limit_first_n" ]]; then
+    if ! [[ "$limit_first_n" =~ ^[1-9][0-9]*$ ]]; then
+        echo "Error: --limit_first_n must be a positive integer."
+        show_help
+        exit 1
+    fi
+fi
+
+## Credentials file is required for databases that need API tokens / OAuth
+NEEDS_CREDENTIALS=(enterobase pubmlst cgmlst mlst all)
+if [[ " ${NEEDS_CREDENTIALS[*]} " =~ " ${database} " ]]; then
+    if [[ -z "$credentials_file" ]]; then
+        echo "Error: --credentials_file is required when --database is '${database}'."
+        echo "       See sample_credentials.txt for the expected format."
+        show_help
+        exit 1
+    fi
+fi
+
 # Output the parsed arguments
 echo "Database: $database"
 echo "Output Path: $output"
@@ -182,9 +223,30 @@ echo "Docker image: ${image_name}"
 echo "Downloading all databases may take several hours"
 [[ "$database" == "kraken2" ]] && echo "Kraken Type: ${kraken_type}"
 [[ "$database" == "mlst"  ||  "$database" == "cgmlst" || "$database" == "enterobase" ]] && echo "Genus: ${genus}"
+[[ -n "$limit_first_n" ]] && echo "Limit first N records: ${limit_first_n}"
+[[ -n "$credentials_file" ]] && echo "Credentials file: ${credentials_file}"
+
+EXTRA_VOLUMES=""
+if [[ -n "$credentials_file" ]]; then
+    credentials_file=$(realpath "${credentials_file}")
+    if [[ ! -f "$credentials_file" ]]; then
+        echo "Error: --credentials_file does not exist: $credentials_file"
+        exit 1
+    fi
+    if [[ ! -r "$credentials_file" ]]; then
+        echo "Error: --credentials_file is not readable: $credentials_file"
+        exit 1
+    fi
+    EXTRA_VOLUMES="--volume ${credentials_file}:/home/update/credentials.txt:ro"
+fi
 
 
 docker run --rm \
        --volume "${output}:/home/external_databases:rw" \
+       ${EXTRA_VOLUMES} \
        --user $(id -u):$(id -g) \
-       ${image_name} ${database} ${kraken_type} ${genus} ${cpus}
+       -e UPDATER_CONTAINER_IMAGE="${image_name}" \
+       -e UPDATER_USER="$(id -un)" \
+       -e UPDATER_HOST="$(hostname)" \
+       -e UPDATER_WORKSPACE="${output}" \
+       ${image_name} ${database} ${kraken_type} ${genus} ${cpus} ${limit_first_n}

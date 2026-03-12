@@ -1760,6 +1760,12 @@ process run_pHierCC_pubmlst {
 import  sys
 import gzip
 import re
+
+# Fix to use data downloaded with numpy>2 should be removed when we update bacterial container
+import numpy
+sys.modules['numpy._core'] = numpy.core
+sys.modules['numpy._core.multiarray'] = numpy.core.multiarray
+sys.modules['numpy._core._multiarray_umath'] = numpy.core._multiarray_umath
 import numpy as np
 
 species="$SPECIES"
@@ -2048,10 +2054,15 @@ process extract_historical_data_enterobase {
   script:
 """
 #!/usr/bin/python
-import numpy as np
-import sys
 import re 
 import json
+import sys
+# Fix to use data downloaded with numpy>2 should be removed when we update bacterial container to numpy>2 
+import numpy
+sys.modules['numpy._core'] = numpy.core
+sys.modules['numpy._core.multiarray'] = numpy.core.multiarray
+sys.modules['numpy._core._multiarray_umath'] = numpy.core._multiarray_umath
+import numpy as np
 
 species="${SPECIES}"
 genus="$GENUS"
@@ -2211,10 +2222,15 @@ process extract_historical_data_pubmlst {
   script:
 """
 #!/usr/bin/python
-import numpy as np
-import sys
 import re
 import json
+import sys
+# Fix to use data downloaded with numpy>2 should be removed when we update bacterial container to numpy>2 
+import numpy
+sys.modules['numpy._core'] = numpy.core
+sys.modules['numpy._core.multiarray'] = numpy.core.multiarray
+sys.modules['numpy._core._multiarray_umath'] = numpy.core._multiarray_umath
+import numpy as np
 
 species="${SPECIES}"
 

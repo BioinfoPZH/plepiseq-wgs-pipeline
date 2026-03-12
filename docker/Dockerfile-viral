@@ -522,7 +522,7 @@ COPY VERSION /VERSION
 WORKDIR /home
 
 # updater container
-FROM python:3.8-slim-bookworm AS updater
+FROM python:3.11-slim-bookworm AS updater
 ARG CERT_FILE
 ARG PIP_TIMEOUT
 ARG PIP_INDEX_URL
@@ -557,8 +557,7 @@ RUN wget https://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/2.15.0/ncbi-blast
 ENV PATH="/blast/bin/:$PATH"
 
 # install missing python packages
-RUN pip install requests Bio click lxml bs4 
-
+RUN pip install requests requests-oauthlib Bio click lxml bs4 pydantic
 # install kma 
 RUN cd /home; git clone https://bitbucket.org/genomicepidemiology/kma.git; cd kma ; make; cd /home
 
