@@ -40,7 +40,7 @@ This project is part of [PleEpiSeq](https://www.pzh.gov.pl/projekty-i-programy/p
 
 ### 1. Clone the main repository
 ```
-git clone --depth 1 https://github.com/mkadlof/plepiseq-wgs-pipeline
+git clone --depth 1 https://github.com/BioinfoPZH/plepiseq-wgs-pipeline.git
 cd plepiseq-wgs-pipeline
 ```
 ### 2. Build docker images used by the pipeline 
@@ -56,10 +56,10 @@ Note: For each Dockerfile two images are created: one tagged `latest` and one ta
 
 ### 3. download external reference databases (≈230 GB)
 ```
-./update_external_databases.sh --database all --output /mnt/raid/external_databases
+./update_external_databases.sh --database all --output /mnt/raid/external_databases --credentials_file /path/to/credentials
 ```
 
-Note: Provide the script with an existing path 
+Note: Provide the script with an existing path and prepare valid crentail file based on `sample_credentials.txt`. Credentials are required to fetch data from enterobase and pubmlst services.
 
 ---
 
@@ -89,7 +89,7 @@ Note: Provide the script with an existing path
    copy updated Alphafold image from our repo to alphafold repo 
    
    ```
-   cp ${PATH_TO_PLEPISEQ_REPO}/docker/Dockerfile docker/Dockerfile
+   cp ${PATH_TO_PLEPISEQ_REPO}/docker/Dockerfile-alphafold docker/Dockerfile
    ```
    build an image
    ```
