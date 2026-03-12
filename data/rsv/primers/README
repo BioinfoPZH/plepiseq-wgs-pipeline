@@ -1,5 +1,5 @@
-primery V0 - to te 4 pary rekomendowane przez WHO z papieru z 2015 roku
-primery V1 - to primery z artica (repo artic-rsv ale z zakresami poprawionymi na MOJE genomy referencyjne, uzywam innych genomow niz artic) poprawa wyglada tak:
+primery RSV_WHO-2015 - to te 4 pary rekomendowane przez WHO z papieru z 2015 roku
+primery RSV_Artic_V1 - to primery z artica (repo artic-rsv ale z zakresami poprawionymi na MOJE genomy referencyjne, uzywam innych genomow niz artic) poprawa wyglada tak:
 
 do pozycji 15095 moj genom to po prostu dodanie +15 w stosunku do genomu z artica
 potem w moim genomie jest delecja wiec jest +14
@@ -8,14 +8,14 @@ cat RSVA.scheme.bed  | awk '{print "hRSV/A/England/397/2017", $2+15, $3+15, $4, 
 ostatni primer potem poprawiam recznie przez odjecie -1
 cp  RSVA.scheme_updated.bed RSV_A.bed 
 
-tworzenie pairs dla V1 (jako ze nie ma alt wystarczy):
+tworzenie pairs dla RSV_Artic_V1 (jako ze nie ma alt wystarczy):
  2091  cat RSV_A.bed | grep LEFT | cut -f4 >> left.txt
  2092  cat RSV_A.bed | grep RIGHT | cut -f4 >> right.txt
  2093  paste left.txt right.txt
  2094  paste left.txt right.txt  >> pairs.txt
  2095  history
 
-primery V1 z RSVB mozna uzywac bezposrednio, jedyna zmiana jaka mam to delecja ale jest ona ZA ostatnim primerem
+primery RSV_Artic_V1 z RSVB mozna uzywac bezposrednio, jedyna zmiana jaka mam to delecja ale jest ona ZA ostatnim primerem
 naelezy tylko analogicznie jak wyzej dodac plik pairs
 
-Update pod nextflow - primery podzielona na katalogi z typami (A i B), w ramach typu zostawile juz tylko katalogi o nazwach V1 i V0
+Update pod nextflow - primery podzielona na katalogi z typami (A i B), w ramach typu zostawile juz tylko katalogi o nazwach RSV_Artic_V1 i RSV_WHO-2015

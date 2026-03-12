@@ -8,15 +8,23 @@ necessary for `ivar` have been added.
 
 ### Directories:
 
-V1 to V5 - schemes downloaded from the repository
+#### ARTIC
+
+`Artic_V1` to `Artic_V5.4.2` - schemes downloaded from the repository
 [https://github.com/artic-network/primer-schemes/tree/master](https://github.com/artic-network/primer-schemes/tree/master)
 standardly used in the artic protocol.
+
+#### Midnight
+
+`Midnight_1200nt` - the Midnight 1200bp amplicon scheme.
+
+#### EQA
 
 Directories:
 - EQA2023.SARS1
 - EQA2023.SARS2
 - EQA2024.V4_1 (practically identical, the only difference is the range of primer 64_LEFT)
-- EQA2024.V5_3 (identical to the directory V.5.3.2 because V.5.3.2 is its copy)
+- EQA2024.V5_3 (identical to the directory Artic_V5.3.2 because Artic_V5.3.2 is its copy)
 
 contain primers used in EQA tests according to the names they had there.
 
@@ -32,15 +40,15 @@ Two "versions" of primers can be found in the [NEB VarSkip repository](https://g
 1. **Root directory version** - original BED files with primer coordinates
 2. **schemes/NEB_VarSkip subdirectory** - reformatted for ARTIC pipeline compatibility (no "alt" suffix in primer names, standardized reference name)
 
-Primer coordinates for a given VarSkip version are identical between both formats (except VarSkip_long_1a).
+Primer coordinates for a given VarSkip version are identical between both formats (except VarSkip_V1a_long).
 
 ## Source Files
 
-- **VarSkip2** (also known as VarSkip2a): https://github.com/nebiolabs/VarSkip/blob/main/neb_vss2a.primer.bed
-- **VarSkip_long_1a**: https://github.com/nebiolabs/VarSkip/blob/main/schemes/NEB_VarSkip/V1a-long/NEB_VarSkip.scheme.bed 
+- **VarSkip_V2** (also known as VarSkip2a): https://github.com/nebiolabs/VarSkip/blob/main/neb_vss2a.primer.bed
+- **VarSkip_V1a_long**: https://github.com/nebiolabs/VarSkip/blob/main/schemes/NEB_VarSkip/V1a-long/NEB_VarSkip.scheme.bed 
   (NOTE: this scheme differs from https://github.com/nebiolabs/VarSkip/blob/main/neb_vsl1a.primer.bed - e.g., no "MISPRIME" entries)
-- **VarSkip1a**: https://github.com/nebiolabs/VarSkip/blob/main/neb_vss1a.primer.bed
-- **VarSkip2b**: https://github.com/nebiolabs/VarSkip/blob/main/neb_vss2b.primer.bed
+- **VarSkip_V1a**: https://github.com/nebiolabs/VarSkip/blob/main/neb_vss1a.primer.bed
+- **VarSkip_V2b**: https://github.com/nebiolabs/VarSkip/blob/main/neb_vss2b.primer.bed
 
 ## Conversion Steps
 
@@ -53,7 +61,7 @@ which describes BED file format requirements and naming conventions.
 ## Other Primer Sets
 
 **obserco_extra** - directory with primers used in PZH as part of the obserco grant. It is based on 
-midnight1200 with additional primers, but most of these additions have different sequences yet map
+Midnight_1200nt with additional primers, but most of these additions have different sequences yet map
 to the same genomic regions as the original primers.
 
 ## Important Notes
@@ -66,4 +74,3 @@ to the same genomic regions as the original primers.
 - Nanopore primers for SARS have a `.nanopore` extension in the directory name. Each directory should 
   contain a single `.bed` file and a `pairs.tsv` file. The pairs file is not required by the pipeline 
   (it can be empty), but is needed by Nextflow modules that are shared between Nanopore and Illumina workflows.
-

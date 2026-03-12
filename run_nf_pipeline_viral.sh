@@ -19,18 +19,22 @@
 
 # Single source of truth for all supported primer schemes
 # SARS-CoV-2 primers
-SARSCOV2_PRIMERS=(EQA2023.SARS1 EQA2023.SARS2 EQA2024.V4_1 EQA2024.V4_1.nanopore EQA2024.V5_3 V1 V1200 V2 V3 V4 V4.1 V5.3.2 V5.4.2 VarSkip2 VarSkip2b VarSkip1a VarSkip_long_1a)
+SARSCOV2_PRIMERS=(EQA2023.SARS1 EQA2023.SARS2 EQA2024.V4_1 EQA2024.V4_1.nanopore EQA2024.V5_3 Artic_V1 Artic_V2 Artic_V3 Artic_V4 Artic_V4.1 Artic_V5.3.2 Artic_V5.4.2 Midnight_1200nt VarSkip_V1a VarSkip_V2 VarSkip_V2b VarSkip_V1a_long)
 # RSV primers  
-RSV_PRIMERS=(V0 V1)
+RSV_PRIMERS=(RSV_WHO-2015 RSV_Artic_V1)
+# Influenza primers (placeholder -- subtype-specific primers are selected automatically)
+INFLUENZA_PRIMERS=(UniRef)
 # Combined list for validation
-ALL_PRIMERS=("${SARSCOV2_PRIMERS[@]}" "${RSV_PRIMERS[@]}")
+ALL_PRIMERS=("${SARSCOV2_PRIMERS[@]}" "${RSV_PRIMERS[@]}" "${INFLUENZA_PRIMERS[@]}")
 
 # Helper function to format primers list for help text
 get_primers_help_text() {
     local sarscov2_list="${SARSCOV2_PRIMERS[*]}"
     local rsv_list="${RSV_PRIMERS[*]}"
+    local influenza_list="${INFLUENZA_PRIMERS[*]}"
     echo "                                  Akceptowane wartosci to ${sarscov2_list} (dla SARS-CoV-2)"
     echo "                                  ${rsv_list} (dla RSV)"
+    echo "                                  ${influenza_list} (dla Influenza)"
 }
 
 # Parameters I-IV without DEFAULTS that MUST be specified by a user (adapters_id) is an execpetion
@@ -511,17 +515,26 @@ if [ $(echo "${expanded_reads}" | wc -w) -lt 1 ]; then
 fi
 
 
-# Check primers
+# Check primers -- validate that the provided primer scheme is correct for the selected species
+if [[ "$species" == "SARS-CoV-2" ]]; then
+    VALID_PRIMERS=("${SARSCOV2_PRIMERS[@]}")
+elif [[ "$species" == "RSV" ]]; then
+    VALID_PRIMERS=("${RSV_PRIMERS[@]}")
+elif [[ "$species" == "Influenza" ]]; then
+    VALID_PRIMERS=("${INFLUENZA_PRIMERS[@]}")
+fi
+
 CORRECT_ID=0
-for var in ${ALL_PRIMERS[@]}; do
-    if [ ${primers_id} == ${var} ];then
-           CORRECT_ID=1
-           break
-           fi
+for var in "${VALID_PRIMERS[@]}"; do
+    if [[ "${primers_id}" == "${var}" ]]; then
+        CORRECT_ID=1
+        break
+    fi
 done
 
-if [ ${CORRECT_ID} -eq 0 ]; then
-    echo -e "Please specify correct primer scheme with --primers_id/ Available options are ${ALL_PRIMERS[@]}\n"
+if [[ ${CORRECT_ID} -eq 0 ]]; then
+    echo -e "Error: Invalid primer scheme '${primers_id}' for species '${species}'."
+    echo -e "Available options for ${species}: ${VALID_PRIMERS[*]}\n"
     exit 1
 fi
 
@@ -571,5 +584,3 @@ nextflow run ${projectDir}/nf_pipeline_viral.nf \
     -profile ${profile} \
     -with-trace
 
-# Example call for SARS-CoV-2 Illumina data on A100
-# ./run_nf_pipeline.sh --reads "/mnt/md0/michall/EQA2024_SARS/fastq/*_{1,2}.fastq.gz"  --machine="Illumina" --species="SARS-CoV-2" --projectDir="/home/michall/git/plepiseq-wgs-pipeline/" --threads 40 --primers_id="EQA2023.SARS2"

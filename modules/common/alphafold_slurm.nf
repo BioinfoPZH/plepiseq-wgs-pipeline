@@ -4,7 +4,7 @@ process alphafold_slurm {
     container  = params.alphafold_image
     memory "250 GB"
     time "40m"
-    clusterOptions "--gpus 1 --nodelist=${params.hostname}"
+    clusterOptions "--gpus 1"
     containerOptions "--volume ${params.external_databases_path}/alphafold:/db --gpus=\"device=\${SLURM_JOB_GPUS}\""
     publishDir "${params.results_dir}/${sampleId}", mode: 'copy', pattern: "*.pdb"
 
