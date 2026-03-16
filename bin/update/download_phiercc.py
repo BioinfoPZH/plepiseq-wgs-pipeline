@@ -22,8 +22,9 @@ from utils.validation import get_timestamp, verify_expected_files
 
 DATABASE = {"name": "phiercc_local", "category": "cgMLST clustering"}
 
-PHIERCC_REPO_RAW_BASE = "https://github.com/michallaz/phiercc_pzh_mod/raw/refs/heads/main/plepiseq_data"
-TIMESTAMP_URL = f"{PHIERCC_REPO_RAW_BASE}/timestamp"
+PHIERCC_REPO = "BioinfoPZH/plepiseq-cluster"
+PHIERCC_API_LATEST_RELEASE = f"https://api.github.com/repos/{PHIERCC_REPO}/releases/latest"
+PHIERCC_DOWNLOAD_BASE = f"https://github.com/{PHIERCC_REPO}/releases/download"
 
 RAW_FILES: Tuple[str, ...] = (
     "profile_complete_linkage.HierCC.gz",
@@ -32,55 +33,55 @@ RAW_FILES: Tuple[str, ...] = (
     "profile_single_linkage.HierCC.index",
 )
 
-# IMPORTANT: local subdir layout is taken from bin/update/update.sh (shell baseline)
 GENUS_CONFIG: Dict[str, Dict[str, str]] = {
-    # remote dir: Campylobacter/, local dir: Campylobacter/jejuni/
-    "Campylobacter": {"remote_subdir": "Campylobacter", "local_subdir": "Campylobacter/jejuni"},
-    # remote dir: Escherichia/, local dir: Escherichia/
-    "Escherichia": {"remote_subdir": "Escherichia", "local_subdir": "Escherichia"},
-    # remote dir: Salmonella/, local dir: Salmonella/
-    "Salmonella": {"remote_subdir": "Salmonella", "local_subdir": "Salmonella"},
+    "Campylobacter": {"local_subdir": "Campylobacter/jejuni"},
+    "Escherichia": {"local_subdir": "Escherichia"},
+    "Salmonella": {"local_subdir": "Salmonella"},
 }
 
 
-def _read_remote_timestamp(*, url: str, timeout_s: int = 30) -> Tuple[bool, str, str]:
+def _get_latest_release_tag(*, timeout_s: int = 30) -> Tuple[bool, str, str]:
     """
-    Fetch remote timestamp (a short string like '01/24/26').
-    Returns (ok, timestamp, error_message).
+    Fetch the latest GitHub Release tag (e.g. 'v2026.03.04') from the plepiseq-cluster repo.
+    Returns (ok, tag_name, error_message).
     """
     try:
-        r = requests.get(url, timeout=timeout_s)
+        r = requests.get(
+            PHIERCC_API_LATEST_RELEASE,
+            timeout=timeout_s,
+            headers={"Accept": "application/vnd.github.v3+json"},
+        )
         if r.status_code != 200:
             return False, "", f"HTTP {r.status_code}"
-        ts = (r.text or "").strip()
-        if not ts:
-            return False, "", "Empty timestamp content"
-        return True, ts, ""
+        tag = r.json().get("tag_name", "").strip()
+        if not tag:
+            return False, "", "Empty tag_name in release response"
+        return True, tag, ""
     except Exception as e:
         return False, "", str(e)
 
 
-def _determine_update_status_timestamp(
+def _determine_update_status(
     *,
     output_dir: Path,
     logger,
-    baseline_filename: str = "current_timestamp.txt",
+    baseline_filename: str = "current_release_tag.txt",
 ) -> Tuple[Dict[str, Any], Dict[str, Any], bool, str]:
     """
-    Compare remote repo timestamp vs local baseline file in output_dir.
+    Compare latest GitHub Release tag vs locally stored baseline.
 
     Returns:
       milestone payload,
       update_decision kwargs (for ReportBuilder.set_update_decision),
       update_required,
-      remote_timestamp_str
+      remote_release_tag
     """
     started_at = get_timestamp()
 
-    ok, remote_ts, err = _read_remote_timestamp(url=TIMESTAMP_URL, timeout_s=30)
+    ok, remote_tag, err = _get_latest_release_tag(timeout_s=30)
     if not ok:
         finished_at = get_timestamp()
-        msg = f"Failed to read remote timestamp: {err}"
+        msg = f"Failed to fetch latest release tag: {err}"
         milestone = {
             "status": StatusType.FAILED.value,
             "message": msg,
@@ -88,33 +89,33 @@ def _determine_update_status_timestamp(
             "finished_at": finished_at,
             "attempts": 1,
             "retryable": True,
-            "metrics": {"timestamp_url": TIMESTAMP_URL},
+            "metrics": {"api_url": PHIERCC_API_LATEST_RELEASE},
         }
-        update_decision = {"mode": "timestamp", "result": "error", "message": msg, "first_build": True,
+        update_decision = {"mode": "release_tag", "result": "error", "message": msg, "first_build": True,
                            "timestamp_local": "", "timestamp_remote": ""}
         return milestone, update_decision, False, ""
 
     baseline_path = output_dir / baseline_filename
-    local_ts = ""
+    local_tag = ""
     first_build = True
     if baseline_path.exists():
         try:
-            local_ts = baseline_path.read_text(encoding="utf-8").strip()
+            local_tag = baseline_path.read_text(encoding="utf-8").strip()
             first_build = False
         except Exception:
-            local_ts = ""
+            local_tag = ""
             first_build = False
 
-    update_required = first_build or (local_ts != remote_ts)
+    update_required = first_build or (local_tag != remote_tag)
 
     finished_at = get_timestamp()
     if update_required:
         msg = (
-            "No local timestamp baseline: treating as first build."
+            "No local release baseline: treating as first build."
             if first_build
-            else "Update required: remote timestamp differs from local baseline."
+            else f"Update required: remote release {remote_tag} differs from local {local_tag}."
         )
-        logger.info("%s local=%r remote=%r", msg, local_ts, remote_ts)
+        logger.info("%s local=%r remote=%r", msg, local_tag, remote_tag)
         milestone = {
             "status": StatusType.PASSED.value,
             "message": msg,
@@ -123,24 +124,24 @@ def _determine_update_status_timestamp(
             "attempts": 1,
             "retryable": False,
             "metrics": {
-                "timestamp_url": TIMESTAMP_URL,
+                "api_url": PHIERCC_API_LATEST_RELEASE,
                 "baseline_path": str(baseline_path),
                 "first_build": first_build,
                 "update_required": True,
             },
         }
         update_decision = {
-            "mode": "timestamp",
+            "mode": "release_tag",
             "result": "updated",
             "message": msg,
             "first_build": first_build,
-            "timestamp_local": local_ts,
-            "timestamp_remote": remote_ts,
+            "timestamp_local": local_tag,
+            "timestamp_remote": remote_tag,
         }
-        return milestone, update_decision, True, remote_ts
+        return milestone, update_decision, True, remote_tag
 
-    msg = "No update required: remote timestamp matches local baseline."
-    logger.info("%s local=%r remote=%r", msg, local_ts, remote_ts)
+    msg = f"No update required: release tag {local_tag} matches latest."
+    logger.info("%s local=%r remote=%r", msg, local_tag, remote_tag)
     milestone = {
         "status": StatusType.PASSED.value,
         "message": msg,
@@ -149,21 +150,21 @@ def _determine_update_status_timestamp(
         "attempts": 1,
         "retryable": False,
         "metrics": {
-            "timestamp_url": TIMESTAMP_URL,
+            "api_url": PHIERCC_API_LATEST_RELEASE,
             "baseline_path": str(baseline_path),
             "first_build": first_build,
             "update_required": False,
         },
     }
     update_decision = {
-        "mode": "timestamp",
+        "mode": "release_tag",
         "result": "latest_version_present",
         "message": msg,
         "first_build": first_build,
-        "timestamp_local": local_ts,
-        "timestamp_remote": remote_ts,
+        "timestamp_local": local_tag,
+        "timestamp_remote": remote_tag,
     }
-    return milestone, update_decision, False, remote_ts
+    return milestone, update_decision, False, remote_tag
 
 
 def _targets_for_genus(genus: str) -> Sequence[str]:
@@ -185,19 +186,19 @@ def _download_phiercc_files(
     *,
     output_dir: Path,
     targets: Sequence[str],
+    release_tag: str,
     logger,
     max_retries: int = 3,
     wait_seconds: int = 30,
 ) -> Dict[str, Any]:
     started_at = get_timestamp()
 
-    # Build (url, dest) list
     jobs: List[Tuple[str, Path]] = []
     for g in targets:
-        remote_subdir = GENUS_CONFIG[g]["remote_subdir"]
         local_subdir = GENUS_CONFIG[g]["local_subdir"]
         for fname in RAW_FILES:
-            url = f"{PHIERCC_REPO_RAW_BASE}/{remote_subdir}/{fname}"
+            asset_name = f"{g}_{fname}"
+            url = f"{PHIERCC_DOWNLOAD_BASE}/{release_tag}/{asset_name}"
             dest = output_dir / local_subdir / fname
             jobs.append((url, dest))
 
@@ -291,15 +292,14 @@ def _processing_status_dummy() -> Dict[str, Any]:
     }
 
 
-def _persist_timestamp_baseline(*, output_dir: Path, remote_ts: str) -> None:
+def _persist_release_baseline(*, output_dir: Path, release_tag: str) -> None:
     """
-    Persist baseline for future comparisons, and keep a timestamped history copy.
+    Persist the release tag baseline for future comparisons, and keep a history copy.
     """
-    (output_dir / "timestamp_history").mkdir(parents=True, exist_ok=True)
+    (output_dir / "release_history").mkdir(parents=True, exist_ok=True)
     now = get_timestamp().replace(":", "").replace("-", "")
-    # history file is keyed by local write time (UTC)
-    (output_dir / "timestamp_history" / f"{now}.txt").write_text(remote_ts + "\n", encoding="utf-8")
-    (output_dir / "current_timestamp.txt").write_text(remote_ts + "\n", encoding="utf-8")
+    (output_dir / "release_history" / f"{now}.txt").write_text(release_tag + "\n", encoding="utf-8")
+    (output_dir / "current_release_tag.txt").write_text(release_tag + "\n", encoding="utf-8")
 
 
 @click.command()
@@ -365,8 +365,8 @@ def main(
     remaining_steps = list(ALL_STEPS)
 
     source = {
-        "source_type": "https",
-        "reference": "https://github.com/michallaz/phiercc_pzh_mod",
+        "source_type": "github_release",
+        "reference": f"https://github.com/{PHIERCC_REPO}",
         "expected_raw_files": list(RAW_FILES),
         "expected_processed_files": _expected_paths_for_targets(_targets_for_genus(genus)),
     }
@@ -397,12 +397,8 @@ def main(
         rb.write(str(report_dir / report_file))
         return
 
-    # 2) DATABASE_AVAILABILITY
-    # check timestamp endpoint + one representative file per requested genus
-    urls_to_check: List[str] = [TIMESTAMP_URL]
-    for g in targets:
-        remote_subdir = GENUS_CONFIG[g]["remote_subdir"]
-        urls_to_check.append(f"{PHIERCC_REPO_RAW_BASE}/{remote_subdir}/{RAW_FILES[0]}")
+    # 2) DATABASE_AVAILABILITY — check the GitHub Releases API endpoint
+    urls_to_check: List[str] = [PHIERCC_API_LATEST_RELEASE]
 
     avail = composite_availability_check(urls_to_check, logger, retries=3, interval=10)
     rb.add_named_milestone("DATABASE_AVAILABILITY", avail)
@@ -415,10 +411,10 @@ def main(
         return
 
     # 3) UPDATE_STATUS
-    upd_milestone, update_decision, update_required, remote_ts = _determine_update_status_timestamp(
+    upd_milestone, update_decision, update_required, remote_ts = _determine_update_status(
         output_dir=out_dir,
         logger=logger,
-        baseline_filename="current_timestamp.txt",
+        baseline_filename="current_release_tag.txt",
     )
     rb.add_named_milestone("UPDATE_STATUS", upd_milestone)
     remaining_steps.remove("UPDATE_STATUS")
@@ -438,7 +434,7 @@ def main(
         return
 
     # 4) REMOTE_FILES_DOWNLOAD_STATUS
-    dl = _download_phiercc_files(output_dir=out_dir, targets=targets, logger=logger, max_retries=3, wait_seconds=30)
+    dl = _download_phiercc_files(output_dir=out_dir, targets=targets, release_tag=remote_ts, logger=logger, max_retries=3, wait_seconds=30)
     rb.add_named_milestone("REMOTE_FILES_DOWNLOAD_STATUS", dl)
     remaining_steps.remove("REMOTE_FILES_DOWNLOAD_STATUS")
     if dl["status"] != StatusType.PASSED.value:
@@ -464,9 +460,9 @@ def main(
 
     # Persist baseline only after success
     try:
-        _persist_timestamp_baseline(output_dir=out_dir, remote_ts=remote_ts)
+        _persist_release_baseline(output_dir=out_dir, release_tag=remote_ts)
     except Exception as e:
-        logger.warning("Failed to persist timestamp baseline: %s", e)
+        logger.warning("Failed to persist release tag baseline: %s", e)
 
     rb.finalize("PASS")
     rb.write(str(report_dir / report_file))
