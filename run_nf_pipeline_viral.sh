@@ -19,9 +19,9 @@
 
 # Single source of truth for all supported primer schemes
 # SARS-CoV-2 primers
-SARSCOV2_PRIMERS=(EQA2023.SARS1 EQA2023.SARS2 EQA2024.V4_1 EQA2024.V4_1.nanopore EQA2024.V5_3 Artic_V1 Artic_V2 Artic_V3 Artic_V4 Artic_V4.1 Artic_V5.3.2 Artic_V5.4.2 Midnight_1200nt VarSkip_V1a VarSkip_V2 VarSkip_V2b VarSkip_V1a_long)
+SARSCOV2_PRIMERS=(EQA2023.SARS1 EQA2023.SARS2 EQA2024.V4_1 EQA2024.V4_1.nanopore EQA2024.V5_3 Artic_V1 Artic_V2 Artic_V3 Artic_V4 Artic_V4.1 Artic_V5.3.2 Artic_V5.4.2 Midnight_1200nt VarSkip_V1a VarSkip_V2 VarSkip_V2b VarSkip_V1a_long EQA2026.SARS1 EQA2026.SARS2)
 # RSV primers  
-RSV_PRIMERS=(RSV_WHO-2015 RSV_Artic_V1)
+RSV_PRIMERS=(RSV_WHO-2015 RSV_Artic_V1 RSV_EQA20206.illumina RSV_EQA20206.nanopore)
 # Influenza primers (placeholder -- subtype-specific primers are selected automatically)
 INFLUENZA_PRIMERS=(UniRef)
 # Combined list for validation

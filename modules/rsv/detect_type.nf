@@ -37,8 +37,8 @@ else
           ${reads[1]}  | \
           samtools view -@ ${task.cpus} -Sb -o type_determination.bam -f 3 -F 2048 -
 
-  ILE_A=`samtools view type_determination.bam | grep "hRSV/A/England/397/2017" | wc -l `
-  ILE_B=`samtools view type_determination.bam | grep "hRSV/B/England/RE20000104/2020" | wc -l `
+  ILE_A=`samtools view type_determination.bam | grep "PP525321" | wc -l `
+  ILE_B=`samtools view type_determination.bam | grep "OR666591" | wc -l `
 
   if [[ \${ILE_A} -lt 1000 && \${ILE_B} -lt 1000 ]]; then
       QC_exit="nie"
@@ -110,8 +110,8 @@ else
   minimap2 -a -x map-ont -t ${task.cpus} -o tmp.sam \${REFERENCE_GENOME_FASTA} ${reads}  >> ${log} 2>&1
   samtools view -@ ${task.cpus} -Sb -o type_determination.bam -F 2052 tmp.sam
 
-  ILE_A=`samtools view type_determination.bam | grep "hRSV/A/England/397/2017" | wc -l `
-  ILE_B=`samtools view type_determination.bam | grep "hRSV/B/England/RE20000104/2020" | wc -l `
+  ILE_A=`samtools view type_determination.bam | grep "PP525321" | wc -l `
+  ILE_B=`samtools view type_determination.bam | grep "OR666591" | wc -l `
 
   if [[ \${ILE_A} -lt 1000 && \${ILE_B} -lt 1000 ]]; then
       QC_exit="nie"
