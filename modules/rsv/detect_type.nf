@@ -104,6 +104,7 @@ if [ ${QC_STATUS} == "nie" ]; then
   touch RSV_dummy.fasta
   touch RSV_dummy.fasta.amb
   touch primers.bed
+  touch genome.fasta
   touch genes.gtf
 else
   REFERENCE_GENOME_FASTA="/home/data/rsv/genomes/RSV/RSV.fasta"
@@ -113,7 +114,7 @@ else
   ILE_A=`samtools view type_determination.bam | grep "PP525321" | wc -l `
   ILE_B=`samtools view type_determination.bam | grep "OR666591" | wc -l `
 
-  if [[ \${ILE_A} -lt 1000 && \${ILE_B} -lt 1000 ]]; then
+  if [[ \${ILE_A} -lt 500 && \${ILE_B} -lt 500 ]]; then
       QC_exit="nie"
       TYPE="unk"
       REF_GENOME_ID="unk"
@@ -121,20 +122,23 @@ else
       touch RSV_dummy.fasta
       touch RSV_dummy.fasta.amb
       touch primers.bed
+      touch genome.fasta
       touch genes.gtf
-  elif [[ \${ILE_A} -gt 1000 || \${ILE_B} -gt 1000 ]]; then
+  elif [[ \${ILE_A} -gt 500 || \${ILE_B} -gt 500 ]]; then
     QC_exit="tak"
     if  [ \${ILE_A} -gt \${ILE_B} ]; then
       TYPE="A"
       cp /home/data/rsv/primers/A/${params.primers_id}/*bed primers.bed
       cp /home/data/rsv/primers/A/${params.primers_id}/*tsv pairs.tsv
       cp /home/data/rsv/genomes/RSV_A/RSV* .
+      cp /home/data/rsv/genomes/RSV_A/RSV_A.fasta genome.fasta
       touch genes.gtf
     else
       TYPE="B"
       cp /home/data/rsv/primers/B/${params.primers_id}/*bed primers.bed
       cp /home/data/rsv/primers/B/${params.primers_id}/*tsv pairs.tsv
       cp /home/data/rsv/genomes/RSV_B/RSV* .
+      cp /home/data/rsv/genomes/RSV_B/RSV_B.fasta genome.fasta
       touch genes.gtf
     fi
   REF_GENOME_ID=`head -1 genome.fasta | cut -d " " -f1 | tr -d ">"`

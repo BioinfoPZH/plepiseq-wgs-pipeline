@@ -31,7 +31,8 @@ process trimmomatic {
                                             LEADING:${params.quality_initial} \
                                             TRAILING:${params.quality_initial} \
                                             SLIDINGWINDOW:4:4 \
-                                            MINLEN:${params.length}
+                                            MINLEN:${params.length} \
+                                            -phred33
     fi
     """
 }
