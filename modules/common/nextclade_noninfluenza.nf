@@ -55,10 +55,10 @@ process nextclade {
       HEADER=`head -1 ${ref_genome_with_index[final_index]} | tr -d ">"`
       if [[ "\${HEADER}" == "MN"* ]]; then
         NEXCLADE_FILE="sars-cov-2.zip"
-      elif [[ \${HEADER} == "hRSV/A"* ]]; then
+      elif [[ \${HEADER} == "PP525321"* ]]; then
         NEXCLADE_FILE="RSV_A.zip"
         RSV_TYPE="A"
-      elif [[ \${HEADER} == "hRSV/B/"* ]]; then
+      elif [[ \${HEADER} == "OR666591"* ]]; then
         NEXCLADE_FILE="RSV_B.zip"
         RSV_TYPE="B"
       fi
