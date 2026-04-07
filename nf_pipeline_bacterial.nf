@@ -1,5 +1,4 @@
 // Variables for processes
-def hostname = "hostname".execute().text.trim() // We need that to overwrite a default "container" options from config, used by the alphafold
 ExecutionDir = new File('.').absolutePath
 
 // ALL parameters are setup usomg bash wrapper except enterobase_api_token that MUST be part of nextflow config
@@ -2547,7 +2546,7 @@ process run_alphafold_slurm {
     cpus { params.threads > 20 ? 20 : params.threads }
     memory "250 GB"
     time "1h 30m" 
-    clusterOptions "--gpus 1 --nodelist=${hostname}"
+    clusterOptions "--gpus 1"
     container  = params.alphafold_image
     containerOptions "--volume ${params.db_absolute_path_on_host}/alphafold:/db --gpus=\"device=\${SLURM_JOB_GPUS}\""
     publishDir "${params.results_dir}/${x}/", mode: 'copy', pattern: "${x}_gyrase_complex.pdb"
