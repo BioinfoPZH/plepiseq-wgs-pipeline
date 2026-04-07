@@ -84,7 +84,7 @@ Note: Provide the script with an existing path and prepare valid crentail file b
     to AlphaFold2 repository and build an image:
    ```bash
    git clone https://github.com/google-deepmind/alphafold.git
-   cd alphafold && git checkout 6350ddd63b3e3f993c7f23b5ce89eb4726fa49e8
+   cd alphafold && git checkout 9b2ed02ff6ecf5c6dd566c765661e9c5d04701e7
    ```
    copy updated Alphafold image from our repo to alphafold repo 
    
