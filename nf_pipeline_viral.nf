@@ -229,7 +229,7 @@ include { consensus_nanopore } from "${modules}/common/consensus.nf"
 // // // Common
 // // // // Common
 include { vcf_from_fasta } from "${modules}/common/vcf_from_fasta.nf"
-include { snpEff_nanopore as snpEff } from "${modules}/common/snpEff.nf"
+include { snpEff_common as snpEff } from "${modules}/common/snpEff.nf"
 // // End of Section // //
 
 
