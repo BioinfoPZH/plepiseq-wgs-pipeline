@@ -32,6 +32,8 @@ FEATURES             Location/Qualifiers
                      /db_xref="taxon:208893"
                      /geo_loc_name="USA: Philadelphia, PA"
                      /collection_date="2017"
+     gene            139..558
+                     /gene="NS
      CDS             139..558
                      /codon_start=1
                      /product="nonstructural protein 1"
@@ -39,6 +41,8 @@ FEATURES             Location/Qualifiers
                      /translation="MGSNSLSMIKVRLQNLFDNDEVALLKITCYTDKLIQLTNALAKA
                      VIHTIKLNGIVFVHVITSSDICPNNNIVVKSNFTTMPVLQNGGYIWEMMELTHCSQPN
                      GLIDDNCEIKFSKKLSDSTMTNYMNQLSELLGFDLNP"
+     gene            668..1042
+                     /gene="NS2"
      CDS             668..1042
                      /codon_start=1
                      /product="nonstructural protein 2"
@@ -46,6 +50,8 @@ FEATURES             Location/Qualifiers
                      /translation="MDTTHNDTTPQRLMITDMRPLSLETIITSLTRDIITHKFIYLIN
                      HECIVRKLDERQATFTFLVNYEMKLLHKVGSTKYKKYTEYNTKYGTFPMPIFINHDGF
                      LECIGIKPTKHTPIIYKYDLNP"
+     gene            1180..2355
+                     /gene="N"
      CDS             1180..2355
                      /codon_start=1
                      /product="nucleocapsid protein"
@@ -57,6 +63,8 @@ FEATURES             Location/Qualifiers
                      FIDVFVHFGIAQSSTRGGSRVEGIFAGLFMNAYGAGQVMLRWGVLAKSVKNIMLGHAS
                      VQAEMEQVVEVYEYAQKLGGEAGFYHILNNPKASLLSLTQFPHFSSVVLGNAAGLGIM
                      GEYRGTPRNQDLYDAAKAYAEQLKENGVINYSVLDLTAEELEAIKHQLNPKDNDVEL"
+     gene            2388..3113
+                     /gene="P"
      CDS             2388..3113
                      /codon_start=1
                      /product="phosphoprotein"
@@ -66,6 +74,8 @@ FEATURES             Location/Qualifiers
                      KETIETFDNNEEESSYSYEEINDQTNDNITARLDRIDEKLSEILGMLHTLVVASAGPT
                      SARDGIRDAMVGLREEMIEKIRTEALMTNDRLEAMARLRNEESEKMAKDTSDEVSLNP
                      TSEKLNNLLEGNDSDNDLSLEDF"
+     gene            3296..4066
+                     /gene="M"
      CDS             3296..4066
                      /codon_start=1
                      /product="matrix protein"
@@ -75,12 +85,16 @@ FEATURES             Location/Qualifiers
                      AYDVTTPCEIKACSLTCLKSKNMLTTVKDLTMKTLNPTHDIIALCEFENIVTSKKVII
                      PTYLRSISVRNKDLNTLENITTTEFKNAITNAKIIPYSGLLLVITVTDNKGAFKYIKP
                      QSQFIVDLGAYLEKESIYYVTTNWKHTATRFAIKPMED"
+     gene            4336..4530
+                     /gene="SH"
      CDS             4336..4530
                      /codon_start=1
                      /product="small hydrophobic protein"
                      /protein_id="WXU37055.1"
                      /translation="MENTSITIEFSSKFWPYFTLIHMITTIISLIIIISIMIAILNKL
                      CEYNVFHNKTFELPRARVNT"
+     gene            4721..5686
+                     /gene="G"
      CDS             4721..5686
                      /codon_start=1
                      /product="attachment glycoprotein"
@@ -91,6 +105,8 @@ FEATURES             Location/Qualifiers
                      NDFHFEVFNFVPCSICSNNPTCWAICKRIPNKKPGKKTTTKPTKTPTLKTTKKDPKPQ
                      TTKPKEVLTTKPTGKPTINTTKTNIRTTLLTSNTKGNPEHTSQEETLHSTTSEGYPSP
                      SQVYTTSGQEETLHSTTSEGYPSPSQVHTTSEYLSQSLSSSNTAK"
+     gene            5766..7490
+                     /gene="F"
      CDS             5766..7490
                      /codon_start=1
                      /product="fusion glycoprotein"
@@ -106,6 +122,8 @@ FEATURES             Location/Qualifiers
                      SVGNTLYYVNKQEGKSLYVKGEPIINFYDPLVFPSDEFDASISQVNEKINQSLAFIRK
                      SDELLHNVNAGKSTTNIMITTIIIVIIVILLALIAVGLLLYCKARSTPVTLSKDQLSG
                      INNIAFSN"
+     gene            7709..8293
+                     /gene="M2"
      CDS             7709..8293
                      /codon_start=1
                      /product="M2-1 protein"
@@ -114,12 +132,16 @@ FEATURES             Location/Qualifiers
                      RILKSMDKSIDTLSEISGAAELDRTEEYALGVVGVLESYIGSINNITKQSACVAMSKL
                      LTELNSDDIKKLRDNEEPNSPKVRVYNTVISYIESNRKNNKQTIHLLKRLPADVLKKT
                      IKNTLDIHKSITINNPKESTVSDTNDHAKNNDTT"
+     gene            8268..8534
+                     /gene="M2"
      CDS             8268..8534
                      /codon_start=1
                      /product="M2-2 protein"
                      /protein_id="WXU37059.1"
                      /translation="MPKIMILPDKYPCSINSILITSNCRVTMYNQKNTLYINQNNQNN
                      HIYPPDQPFNEIHWTSQDLIDATQNFLQHLGITDDIYTIYILVS"
+     gene            8601..15098
+                     /gene="L"
      CDS             8601..15098
                      /codon_start=1
                      /product="RNA-dependent RNA polymerase"
