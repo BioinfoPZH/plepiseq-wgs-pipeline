@@ -200,6 +200,13 @@ def json_aggregator(args):
         output = fill_infl_data(output_local=output,
                                 resistance=args.drug_resistance,
                                 reassortment=args.reassortment)
+
+    if args.drug_resistance and args.pathogen == "rsv":
+        resistance = json.load(open(args.drug_resistance))
+        if "rsv_data" not in output["output"]:
+            output["output"]["rsv_data"] = {}
+        output["output"]["rsv_data"] = {**output["output"]["rsv_data"], **resistance}
+
     if args.mapping:
         output["output"]["viral_mapping_data"] = json.load(open(args.mapping))
 

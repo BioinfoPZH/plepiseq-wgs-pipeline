@@ -493,6 +493,7 @@ ENV PYTHONPATH="/home/external_databases/pangolin"
 ENV PATH="/home/bin/common:"\
 "/home/bin/sarscov2:"\
 "/home/bin/infl:"\
+"/home/bin/rsv:"\
 "/opt/kraken2/bin:"\
 "/opt/usher/bin:"\
 "/opt/blat/bin:"\

@@ -277,8 +277,11 @@ include { freyja_infl } from "${modules}/infl/freyja_infl.nf"
 
 // // Modules to predict drug resistance
 // // // Influenza
-// // // // Common
+// // // // 
 include { resistance as resistance_influenza } from "${modules}/infl/resistance.nf"
+// // // RSV
+// // // // Common
+include { resistance_rsv } from "${modules}/rsv/resistance_rsv.nf"
 // // End of Section // //
 
 
@@ -513,13 +516,19 @@ workflow {
    alphafold_out = alphafold_dummy(delayed_alphafold)
  }
   
-  if ( params.species  == 'SARS-CoV-2' || params.species  == 'RSV' ) {
+  // Nextclade and resistance modules are species-aware
+  if ( params.species  == 'SARS-CoV-2' ) {
+
       nextclade_out = nextclade_noninfluenza(final_genome_out.fasta_refgenome_and_qc)
   } else if (params.species  == 'Influenza') {
       // manta_out.fasta_refgenome_and_qc.join(detect_subtype_illumina_out.subtype_id, by:0)
       final_genome_and_influenza_subtype = final_genome_out.fasta_refgenome_and_qc.join(detect_subtype_out.subtype_id, by:0)
       nextclade_out = nextclade_influenza(final_genome_and_influenza_subtype)
       resistance_out = resistance_influenza(nextalign_out.to_resistance)
+  } else if (params.species  == 'RSV') {
+      nextclade_out = nextclade_noninfluenza(final_genome_out.fasta_refgenome_and_qc)
+      for_rsv_resistance = final_genome_out.fasta_and_qc.join(detect_type_out.subtype_id, by:0)
+      resistance_out = resistance_rsv(for_rsv_resistance)
   }
   
   // modeller_out = modeller(nextclade_out.to_modeller)
@@ -582,7 +591,7 @@ workflow {
   for_json_aggregator = for_json_aggregator.join(snpEff_out)
   for_json_aggregator = for_json_aggregator.join(alphafold_out.json)
   
-  if ( params.species  == 'Influenza' ) {
+  if ( params.species  == 'Influenza' || params.species  == 'RSV' ) {
     for_json_aggregator = for_json_aggregator.join(resistance_out.json)
   }
 
