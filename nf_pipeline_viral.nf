@@ -281,7 +281,7 @@ include { freyja_infl } from "${modules}/infl/freyja_infl.nf"
 include { resistance as resistance_influenza } from "${modules}/infl/resistance.nf"
 // // // RSV
 // // // // Common
-include { resistance_rsv } from "${modules}/rsv/resistance_rsv.nf"
+include { resistance_rsv } from "${modules}/rsv/rsv_resistance.nf"
 // // End of Section // //
 
 
