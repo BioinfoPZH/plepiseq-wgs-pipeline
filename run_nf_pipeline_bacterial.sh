@@ -18,6 +18,7 @@ results_dir="./results"
 ## Existing images, for testing purpose can be change, but for production invariable
 main_image="plepiseq-wgs-pipeline-bacterial:latest"
 prokka_image="staphb/prokka:latest"
+medaka_image="ontresearch/medaka:sha447c70a639b8bcf17dc49b51e74dfcde6474837b-amd64"
 alphafold_image="plepiseq-wgs-pipeline-alphafold:latest"
 
 ## Nextflow executor
@@ -57,7 +58,7 @@ model_medaka=""
 
 # Usage function to display help
 usage() {
-    echo "Usage/Wywolanie: $0 --machine [Nanopore|Illumina] --reads PATH --projectDir PATH --external_databases_path PATH --main_image VALUE --prokka_image --alphafold_image VALUE[options]"
+    echo "Usage/Wywolanie: $0 --machine [Nanopore|Illumina] --reads PATH --projectDir PATH --external_databases_path PATH --main_image VALUE --prokka_image VALUE --medaka_image VALUE --alphafold_image VALUE [options]"
     echo "Required parameters/Parametry wymagane:"
     echo "  --machine VALUE                 Sequencing platform: Nanopore or Illumina"
     echo "                                  Platforma sekwencjonujaca uzyta do analizy. Mozliwe wartosci to Nanopore albo Illumina"
@@ -72,6 +73,8 @@ usage() {
     echo "                                  Name of the docker image with main program"
     echo "  --prokka_image VALUE            Nazwa obrazu w formacie \"name:tag\" z obrazem zawierajacym program prokka."
     echo "                                  Name of the docker image with prokka program"
+    echo "  --medaka_image VALUE            Nazwa obrazu w formacie \"name:tag\" z obrazem zawierajacym program medaka."
+    echo "                                  Name of the docker image with medaka program"
     echo "  --alphafold_image VALUE         Nazwa obrazu w formacie \"name:tag\" z obrazem zawierajacym program alphafold"
     echo "                                  Name of the docker image with alphafold program"
     echo "Optional parameters:"
@@ -93,7 +96,7 @@ usage() {
 
 # Full help
 show_all_parameters() {
-    echo "Usage/Wywolanie: $0 --machine [Nanopore|Illumina] --reads PATH --projectDir PATH --external_databases_path PATH --main_image VALUE --prokka_image --alphafold_image VALUE[options]"
+    echo "Usage/Wywolanie: $0 --machine [Nanopore|Illumina] --reads PATH --projectDir PATH --external_databases_path PATH --main_image VALUE --prokka_image VALUE --medaka_image VALUE --alphafold_image VALUE [options]"
     echo "Required parameters/Parametry wymagane:"
     echo "  --machine VALUE                 Sequencing platform: Nanopore or Illumina"
     echo "                                   Platforma sekwencjonujaca uzyta do analizy. Mozliwe wartosci to Nanopore albo Illumina"
@@ -108,6 +111,8 @@ show_all_parameters() {
     echo "                                  Name of the docker image with main program"
     echo "  --prokka_image VALUE            Nazwa obrazu w formacie \"name:tag\" z obrazem zawierajacym program prokka."
     echo "                                  Name of the docker image with prokka program"
+    echo "  --medaka_image VALUE            Nazwa obrazu w formacie \"name:tag\" z obrazem zawierajacym program medaka."
+    echo "                                  Name of the docker image with medaka program"
     echo "  --alphafold_image VALUE         Nazwa obrazu w formacie \"name:tag\" z obrazem zawierajacym program alphafold"
     echo "                                  Name of the docker image with alphafold program"
     echo "Optional parameters:"
@@ -165,7 +170,7 @@ show_all_parameters() {
 
 
 # Parse command-line options using GNU getopt
-OPTS=$(getopt -o h --long projectDir:,profile:,external_databases_path:,results_dir:,main_image:,prokka_image:,alphafold_image:,threads:,machine:,reads:,genus:,quality:,min_number_of_reads:,min_median_quality:,main_genus_value:,kmerfinder_coverage:,main_species_coverage:,min_genome_length:,unique_loci:,contig_number:,N50:,final_coverage:,min_coverage_ratio:,min_coverage_value:,model_medaka:,no-alphafold,all,help -- "$@")
+OPTS=$(getopt -o h --long projectDir:,profile:,external_databases_path:,results_dir:,main_image:,prokka_image:,medaka_image:,alphafold_image:,threads:,machine:,reads:,genus:,quality:,min_number_of_reads:,min_median_quality:,main_genus_value:,kmerfinder_coverage:,main_species_coverage:,min_genome_length:,unique_loci:,contig_number:,N50:,final_coverage:,min_coverage_ratio:,min_coverage_value:,model_medaka:,no-alphafold,all,help -- "$@")
 
 eval set -- "$OPTS"
 
@@ -199,6 +204,10 @@ while true; do
       ;;
     --prokka_image )
       prokka_image="$2"; 
+      shift 2 
+      ;;
+    --medaka_image )
+      medaka_image="$2"; 
       shift 2 
       ;;
     --alphafold_image )
@@ -362,12 +371,14 @@ fi
 
 echo "Running the bacterial pipeline..."
 nextflow run ${projectDir}/nf_pipeline_bacterial.nf \
+	     --projectDir ${projectDir} \
 	     --results_dir ${results_dir} \
 	     --genus ${genus} \
 	     --reads "${reads}" \
 	     --machine ${machine} \
 	     --main_image ${main_image} \
 	     --prokka_image ${prokka_image} \
+	     --medaka_image ${medaka_image} \
 	     --alphafold_image ${alphafold_image} \
 	     --threads ${threads} \
 	     --db_absolute_path_on_host ${external_databases_path} \

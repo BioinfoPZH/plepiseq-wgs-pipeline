@@ -1,6 +1,11 @@
 // Variables for processes
 ExecutionDir = new File('.').absolutePath
 
+// // Directory with main repository containing "modules" directory
+params.projectDir = ""
+modules = "${params.projectDir}/modules" // Modules are part of the project_dir
+
+
 // ALL parameters are setup usomg bash wrapper except enterobase_api_token that MUST be part of nextflow config
 // Comments were preserved in the  nf file for a local executor
 params.genus = ""
@@ -8,7 +13,8 @@ params.reads = ""
 params.machine = ""
 params.main_image = "" 
 params.prokka_image = "" 
-params.alphafold_image =""  
+params.alphafold_image = ""  
+params.medaka_image = ""
 params.enterobase_api_token = "" 
 params.threads = ""
 params.quality = ""   
@@ -50,6 +56,10 @@ params.lan = "pl"
 
 // Turn off alphafold
 params.run_alphafold = true
+
+// Import modules
+include { run_medaka } from "${modules}/bacterial/medaka_bacteria.nf"
+
 
 // Processes 
 process run_fastqc_illumina {
@@ -3306,51 +3316,6 @@ process run_minimap2_2nd {
   // """
 // }
 
-process run_medaka {
-  // wygladzanie genomu medaka, nanopolish nie dziala bo nie mamy pliko fast5
-
-  container  = params.main_image
-  tag "Medaka for sample $x"
-  cpus { params.threads > 15 ? 15 : params.threads }
-  memory "20 GB"
-  time "10m"
-  input:
-  tuple val(x), path(bam1), path(fasta), val(QC_status)
-  output:
-  tuple val(x), path('postmedaka.fasta'), emit: ONLY_GENOME
-  script:
-  """
-  if [ ${QC_status} == "nie" ]; then
-    echo ">dummy_contig" >> postmedaka.fasta
-    echo "AAAAAAAAAAAAA" >> postmedaka.fasta
-  else
-    # indeksacja bam-ow
-    samtools index $bam1
- 
-  
-    medaka inference --model ${params.model_medaka} \
-                     --threads ${task.cpus} \
-                     $bam1 \
-                     forvariants.hdf
-
-  
-    medaka vcf forvariants.hdf  $fasta medaka.vcf
-    medaka tools annotate medaka.vcf $fasta $bam1 medaka_annotated.vcf
-    bcftools sort medaka_annotated.vcf >> medaka_annotated_sorted.vcf
-    bgzip medaka_annotated_sorted.vcf
-    tabix medaka_annotated_sorted.vcf.gz
-  
-    qual=12
-    min_cov=20
-  
-    bcftools filter -O z -o medaka_annotated_filtered.vcf.gz -i "GQ >= \${qual} && DP >= \${min_cov}" medaka_annotated_sorted.vcf.gz
-    tabix medaka_annotated_filtered.vcf.gz
-
-
-    cat $fasta | bcftools consensus medaka_annotated_filtered.vcf.gz >> postmedaka.fasta
-  fi
-  """
-}
 
 process run_kraken2_nanopore {
   // kopia processu do illuminy, ale z uwzglednieniem ze jest tylko jeden plik z odczytami
