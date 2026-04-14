@@ -25,9 +25,9 @@ process snpEff_nanopore {
         # predefined build
         snp_eff="MN908947.3"
       elif [ ${params.species} == "RSV" ]; then
-        if [ `head -1 sequences.fa | awk '{split(\$1, a, "/"); {if (a[2] == "A") {print 1} else {print 0} } }'` == 1 ]; then
+        if [ `head -1 sequences.fa |  awk  '{if (substr(\$0, 2)=="PP525321") print 1; else print 0}'` == 1 ]; then
           snp_eff='hRSV_A'
-        elif  [ `head -1 sequences.fa | awk '{split(\$1, a, "/"); {if (a[2] == "B") {print 1} else {print 0} } }'` == 1 ]; then
+        elif  [ `head -1 sequences.fa | awk  '{if (substr(\$0, 2)=="OR666591") print 1; else print 0}'` == 1 ]; then
           snp_eff='hRSV_B'
         fi
       elif [ ${params.species} == "Influenza" ]; then
