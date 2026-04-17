@@ -60,7 +60,7 @@ params.run_alphafold = true
 // Import modules
 include { run_medaka } from "${modules}/bacterial/medaka_bacteria.nf"
 include { run_fastqc_illumina } from "${modules}/bacterial/fastqc_bacteria.nf"
-include { run_fastqc_nanopore } from "${modules}/bacterial/medaka_bacteria.nf"
+include { run_fastqc_nanopore } from "${modules}/bacterial/fastqc_bacteria.nf"
 
 // genome assembly
 include { run_flye } from "${modules}/bacterial/flye_bacteria.nf"
@@ -84,8 +84,8 @@ include { extract_final_stats } from "${modules}/bacterial/genome_analysis_bacte
 include { run_sistr } from "${modules}/bacterial/sistr_bacteria.nf"
 include { run_ectyper } from "${modules}/bacterial/ectyper_bacteria.nf"
 
-include { run_vfdb } from "${modules}/bacterial/vfdb_analysis_bacteria.nf"
-include { parse_vfdb } from "${modules}/bacterial/vfdb_analysis_bacteria.nf"
+include { run_VFDB } from "${modules}/bacterial/vfdb_analysis_bacteria.nf"
+include { parse_VFDB_ecoli } from "${modules}/bacterial/vfdb_analysis_bacteria.nf"
 
 include { run_prokka } from "${modules}/bacterial/prokka_bacteria.nf"
 include { run_spifinder } from "${modules}/bacterial/spifinder_bacteria.nf"
