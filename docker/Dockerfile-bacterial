@@ -197,7 +197,7 @@ RUN python3 -m pip install --no-cache-dir --force-reinstall --no-deps "biopython
 # Custom scripts 
 COPY bin/bacteria/all_functions_salmonella.py bin/bacteria/run_blastn_ver11.sh bin/bacteria/parse_fastqc_output.py data/bacteria/ne_10m_admin_0_countries.geojson bin/bacteria/plot_historical_data_plotly.py  bin/bacteria/parse_speciesfinder.py /data/
 
-COPY bin/bacteria/json_output_contaminations.py bin/bacteria/coverage_filter.py bin/bacteria/calculate_stats.py bin/bacteria/run_VFDB.sh bin/bacteria/run_fastqc_and_generate_json.py bin/bacteria/initial_mlst_parser.py bin/bacteria/extract_final_stats_parser.py bin/bacteria/resfinder_parser.py bin/bacteria/amrfinder_parser.py bin/bacteria/plasmidfinder_parser.py bin/bacteria/sistr_parser.py bin/bacteria/seqsero_parser.py bin/bacteria/ectyper_parser.py bin/bacteria/spifinder_parser.py bin/bacteria/vfdb_parser.py /bin/bacteria/virulencefinder_parser.py bin/bacteria/prepare_full_json.py /opt/docker/EToKi/externals
+COPY bin/bacteria/json_output_contaminations.py bin/bacteria/coverage_filter.py bin/bacteria/calculate_stats.py bin/bacteria/run_VFDB.sh bin/bacteria/run_fastqc_and_generate_json.py bin/bacteria/initial_mlst_parser.py bin/bacteria/extract_final_stats_parser.py bin/bacteria/resfinder_parser.py bin/bacteria/amrfinder_parser.py bin/bacteria/plasmidfinder_parser.py bin/bacteria/sistr_parser.py bin/bacteria/seqsero_parser.py bin/bacteria/ectyper_parser.py bin/bacteria/spifinder_parser.py bin/bacteria/vfdb_parser.py /bin/bacteria/virulencefinder_parser.py bin/bacteria/prepare_full_json.py bin/bacteria/phiercc_enterobase.py bin/bacteria/phiercc_pubmlst.py /opt/docker/EToKi/externals
 
 COPY VERSION /VERSION
 
