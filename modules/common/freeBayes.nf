@@ -23,6 +23,7 @@ process freeBayes {
                 --use-mapping-quality \
                 --fasta-reference ${ref_genome} \
                 --ploidy 1 \
+                --max-complex-gap -1 \
                 ${bam} > detected_variants_freebayes.vcf
 
       cat detected_variants_freebayes.vcf | \
