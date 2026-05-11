@@ -521,7 +521,7 @@ COPY data/common/snpeff /opt/snpEff
 # add version info to the image
 COPY VERSION /VERSION
 #COPY .git/refs/heads/master /tmp/git_master_ref
-
+RUN echo "export PS1='[\u@\h \W]# '" >> /root/.bashrc
 WORKDIR /home
 
 # updater container
@@ -568,4 +568,5 @@ RUN cd /home; git clone https://bitbucket.org/genomicepidemiology/kma.git; cd km
 WORKDIR /home/update
 ADD bin/update/ /home/update/
 WORKDIR /home
+RUN echo "export PS1='[\u@\h \W]# '" >> /root/.bashrc
 ENTRYPOINT ["/home/update/update.sh"]
