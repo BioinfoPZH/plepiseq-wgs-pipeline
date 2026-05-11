@@ -190,6 +190,9 @@ include { merging_nanopore as merging_nanopore_2 } from "${modules}/common/mergi
 // // // // Illumina
 include { picard_downsample_multisegment as picard_downsample } from "${modules}/common/picard.nf"
 include { introduce_SV_with_manta } from "${modules}/common/manta.nf"
+// // // SARS-CoV-2
+// // // // Nanopore
+include { introduce_SV_with_cutesv } from "${modules}/sarscov2/cutesv.nf"
 // // End of Section // //
 
 
@@ -488,9 +491,23 @@ workflow {
 
         to_final_genome = lowCov_out.fasta.join(novel_genome_2_out.fasta_and_QC)
         to_final_genome = to_final_genome.join(medaka_varscan_integration_2_out.reference_genome)
-        prefinal_genome_out = consensus_nanopore(to_final_genome)  
-        final_genome_out = substitute_ref_genome(prefinal_genome_out.fasta_refgenome_and_qc.join(detect_type_out.only_genome))
- 
+        prefinal_genome_out = consensus_nanopore(to_final_genome)
+
+        // SARS-CoV-2 Nanopore only: run cuteSV to recover amplicon-spanning SVs
+        // (typically large deletions >= 0.8 * amplicon length) that medaka cannot
+        // call. SVs are merged into the per-segment SNP consensus at the FASTA
+        // layer via insert_SV_python2.py, mirroring the manta integration on
+        // the Illumina branch. substitute_ref_genome then restores the original
+        // reference for snpEff/nextclade as before.
+        if ( params.species  == 'SARS-CoV-2' ) {
+          to_cutesv = minimap2_2_out.bam_and_genome.join(detect_type_out.primers, by: 0)
+          to_cutesv = to_cutesv.join(prefinal_genome_out.multiple_fastas, by: 0)
+          cutesv_out = introduce_SV_with_cutesv(to_cutesv)
+          final_genome_out = substitute_ref_genome(cutesv_out.fasta_refgenome_and_qc.join(detect_type_out.only_genome))
+        } else {
+          final_genome_out = substitute_ref_genome(prefinal_genome_out.fasta_refgenome_and_qc.join(detect_type_out.only_genome))
+        }
+
   }
   // Post FASTA generation modules mostly common for nanopore and illumina
 
