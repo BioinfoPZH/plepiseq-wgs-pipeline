@@ -21,6 +21,42 @@ process consensus_illumina {
     """
 }
 
+process consensus_nanopore_SARS {
+    // For SARS-CoV-2 this module goes next to cuteSV step 
+    tag "consensus:${sampleId}"
+    memory "20 GB"
+    container  = params.main_image
+    cpus 1
+    input:
+    tuple val(sampleId), path(masked_ref_genome_fa), path(sample_genome), val(QC_status), path('genome.fasta')
+
+    output:
+    tuple val(sampleId), path("preSV_output_*.fasta"), path('genome.fasta'), val(QC_status), emit: multiple_fastas
+
+
+    script:
+    """
+    if [ ${QC_status} == "nie" ]; then
+      touch preSV_output_dummy.fasta
+      touch ref_genome.fasta
+      touch ref_genome.fasta.fai
+
+    else
+      if [ ${params.species} == "Influenza" ]; then
+        cat ${sample_genome} | grep ">" | awk '{print substr(\$0,2), 0, 12}' | tr " " "\t" >> bed.bed
+        bedtools maskfasta -fi ${sample_genome} -bed bed.bed -fo tmp.fasta
+	      mv tmp.fasta ${sample_genome}
+      fi
+
+      make_consensus_nanopore.py ${masked_ref_genome_fa} ${sample_genome} ${sampleId}
+      # add preSV_ prefix to all output*.fasta files
+      for f in output*.fasta; do mv -- "\$f" "preSV_\$f"; done
+
+    fi
+    """
+}
+
+
 process consensus_nanopore {
     // For nanopore this module provides FINAL sequence for a sample
     // The output should be equivalent to manta module for illumina_path

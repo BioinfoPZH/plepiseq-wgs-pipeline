@@ -18,37 +18,48 @@ process introduce_SV_with_cutesv {
           val(QC_status_minimap), \
           path('primers.bed'), \
           path(consensus_files), \
+          path('genome.fasta'), \
           val(QC_status_consensus)
 
     output:
-    tuple val(sampleId), path('consensus_masked_SV.fa'), path('ref_genome.*'), env(QC_status_exit), emit: fasta_refgenome_and_qc
-    tuple val(sampleId), path('consensus_masked_SV.fa'), env(QC_status_exit), emit: fasta_and_qc
-    tuple val(sampleId), path('cuteSV.filtered.tsv'), emit: sv_table
+    tuple val(sampleId), path("output_*.fasta"), val(QC_status_consensus), emit: multiple_fastas
+    tuple val(sampleId), path('output.fasta'), path('ref_genome.*'), val(QC_status_consensus), emit: fasta_refgenome_and_qc
+    tuple val(sampleId), path("consensus.json"), emit: json
 
     script:
     """
-    # ---- cuteSV tuning knobs (edit here; intentionally NOT Nextflow params) ----
+    # cuteSV parameters 
     CUTESV_MIN_SUPPORT=2              # cuteSV --min_support (permissive caller threshold)
     CUTESV_MIN_READ_LEN=50            # cuteSV --min_read_len
     CUTESV_MIN_DV=10                  # post-filter: minimum variant-supporting reads
     CUTESV_MIN_VAF=0.5                # post-filter: minimum DV/(DR+DV)
     CUTESV_MAX_SV_LENGTH=3000         # post-filter: upper bound on |SVLEN|
     CUTESV_MIN_SV_LENGTH_FALLBACK=500 # used only if amplicon-1 parsing fails
-    # ---------------------------------------------------------------------------
+
 
     if [[ "${QC_status_minimap}" == "nie" || "${QC_status_consensus}" == "nie" ]]; then
-      # Either upstream stage failed - dummy outputs to keep the channel flowing
-      touch consensus_masked_SV.fa
-      echo -e "chrom\\tstart\\tend\\tid\\tlen\\tfilter\\tDR\\tDV\\tVAF\\tGQ" > cuteSV.filtered.tsv
-      QC_status_exit="nie"
-    else
-      QC_status_exit="tak"
+      
+      touch output.fasta
+      touch output_dummy.fasta
+      touch ref_genome.fasta
+      touch ref_genome.fasta.fai
+      
+      if [ "${params.lan}" == "pl" ]; then
+        ERR_MSG="Ten moduł został uruchomiony na próbce, która nie przeszła kontroli jakości."
+      else
+        ERR_MSG="This sample failed a QC analysis during an earlier phase of the analysis."
+      fi
+      
+      parse_make_consensus.py --status "nie" --error "\${ERR_MSG}" -o consensus.json
 
-      # ---- 1. MIN_SV_LEN = floor(0.8 * amplicon-1 outer span) ------------------
-      # Matches read_amplicon_scheme / dlugosc_pierwszego_amplikonu logic in
-      # bin/sarscov2/simple_filter_nanopore_final_with_windowstep.py.
+    else
+
+      ## 1. determine MIN_SV_LEN (we want to ientify deletion that are >= 0.8 * amplicon length) shorter deletion should be identified with medaka
+
+
       LEFT_START=\$(awk '\$4 ~ /_1_LEFT(_alt|_bis)?\$/ {print \$2; exit}' primers.bed)
       RIGHT_END=\$(awk '\$4 ~ /_1_RIGHT(_alt|_bis)?\$/ {print \$3; exit}' primers.bed)
+
       if [[ -n "\${LEFT_START}" && -n "\${RIGHT_END}" && "\${RIGHT_END}" -gt "\${LEFT_START}" ]]; then
         AMPLICON_LEN=\$((RIGHT_END - LEFT_START))
         MIN_SV_LEN=\$(python3 -c "print(int(0.8 * \${AMPLICON_LEN}))")
@@ -56,9 +67,8 @@ process introduce_SV_with_cutesv {
         MIN_SV_LEN=\${CUTESV_MIN_SV_LENGTH_FALLBACK}
       fi
 
-      # ---- 2. Run cuteSV (user's empirical command verbatim) -------------------
-      # --min_size 30 is the caller's lower bound (permissive). The amplicon-derived
-      # MIN_SV_LEN is the strict post-filter applied below.
+      ## 2. Run cuteSV
+
       samtools faidx ref_genome.fasta
       mkdir -p cuteSV_genotype_tmp
       cuteSV ${bam} ref_genome.fasta cuteSV.genotyped.vcf cuteSV_genotype_tmp \\
@@ -72,17 +82,16 @@ process introduce_SV_with_cutesv {
         --max_cluster_bias_DEL 100 \\
         --diff_ratio_merging_DEL 0.3 \\
         --report_readid \\
-        --genotype
+        --genotype >> log 2>&1
 
-      # ---- 3. Extract deletions to TSV (user's exact bcftools format) ----------
-      # The %INFO/RE column at field 7 keeps the awk indexing \$8=DR, \$9=DV, \$10=GQ
-      # aligned with the user's empirical script.
+      ## 3. Extract deletions to TSV 
+
       bcftools view -i 'INFO/SVTYPE="DEL"' cuteSV.genotyped.vcf \\
         | bcftools query \\
             -f '%CHROM\\t%POS\\t%INFO/END\\t%ID\\t%FILTER\\t%INFO/SVLEN\\t%INFO/RE[\\t%DR\\t%DV\\t%GQ]\\t%INFO/RNAMES\\n' \\
         > cuteSV.deletions.genotyped.tsv
 
-      # ---- 4. Apply the user's awk filter with dynamic MIN_SV_LEN --------------
+      ## 4. empirical filters to keep only probable mutations
       awk -F'\\t' \\
           -v MIN="\${MIN_SV_LEN}" \\
           -v MAX="\${CUTESV_MAX_SV_LENGTH}" \\
@@ -100,12 +109,13 @@ process introduce_SV_with_cutesv {
         }
       }' cuteSV.deletions.genotyped.tsv > cuteSV.filtered.tsv
 
-      # ---- 5. Re-derive a small filtered VCF from the IDs that survived --------
-      # Going TSV->VCF via IDs guarantees the set fed to bcftools consensus is
-      # exactly the set reported in cuteSV.filtered.tsv - no expression drift.
+      ## 5. Re-derive a small filtered VCF from the IDs that survived 
+
+
       bgzip -f cuteSV.genotyped.vcf
       tabix -p vcf cuteSV.genotyped.vcf.gz
       awk 'NR>1 {print \$4}' cuteSV.filtered.tsv > cuteSV.passed_ids.txt
+
       if [ -s cuteSV.passed_ids.txt ]; then
         bcftools view -O z -o cuteSV.filtered.vcf.gz \\
           -i 'ID=@cuteSV.passed_ids.txt' cuteSV.genotyped.vcf.gz
@@ -114,73 +124,38 @@ process introduce_SV_with_cutesv {
       fi
       tabix -p vcf cuteSV.filtered.vcf.gz
 
-      # ---- 6. Per-segment apply: bcftools consensus + insert_SV_python2.py ----
-      # Split reference into per-segment files (mirrors manta line 79 of manta.nf).
-      # For SARS the loop runs once; pattern is preserved for future RSV/Influenza.
-      awk '{
-        if (substr(\$0, 1, 1)==">") {
-          new_name=\$0
-          gsub("\\\\.", "_", new_name)
-          gsub("/", "_", new_name)
-          filename=("reference_"substr(new_name,2) ".fasta")
-          print \$0 > filename
-        } else {
-          print toupper(\$0) >> filename
-        }
-      }' ref_genome.fasta
+      ## 6. Apply the filtered SV VCF onto genome.fasta (the reference) to produce
+      ##    an SV-only genome. --mark-del X replaces each deletion span with a run
+      ##    of 'X' characters so the next step (FASTA-level merge with the SNP
+      ##    consensus) can detect the SV intervals, exactly like the manta path.
+      ##    If cuteSV.filtered.vcf.gz is header-only, bcftools consensus just
+      ##    copies genome.fasta through unchanged.
+      samtools faidx genome.fasta
+      bcftools consensus -f genome.fasta --mark-del X cuteSV.filtered.vcf.gz > genome_SV.fasta
 
-      for consensus_file in output_*.fasta; do
-        # output_<segment_clean>.fasta -> segment_clean
-        segment_clean=\$(basename "\${consensus_file}" .fasta | sed 's|^output_||')
-        # Header looks like ">{segment}|{sampleId}" - pull the segment before "|"
-        segment=\$(head -1 "\${consensus_file}" | sed 's|^>||' | cut -d'|' -f1)
 
-        bcftools view -r "\${segment}" -O z \\
-          -o cuteSV.filtered.\${segment_clean}.vcf.gz \\
-          cuteSV.filtered.vcf.gz 2>/dev/null || \\
-        bcftools view -O z \\
-          -o cuteSV.filtered.\${segment_clean}.vcf.gz \\
-          cuteSV.filtered.vcf.gz
-        tabix -p vcf cuteSV.filtered.\${segment_clean}.vcf.gz
-
-        N_SEG_SVS=\$(bcftools view -H cuteSV.filtered.\${segment_clean}.vcf.gz | wc -l)
-        if [ "\${N_SEG_SVS}" -gt 0 ]; then
-          samtools faidx reference_\${segment_clean}.fasta
-          cat reference_\${segment_clean}.fasta \\
-            | bcftools consensus --mark-del X cuteSV.filtered.\${segment_clean}.vcf.gz \\
-            > output_cutesv_\${segment_clean}.fa
-          HEADER=\$(head -1 output_cutesv_\${segment_clean}.fa)
-          sed -i "s|\${HEADER}|\${HEADER}_cutesv|g" output_cutesv_\${segment_clean}.fa
-
-          /home/bin/sarscov2/insert_SV_python2.py \\
-            \${consensus_file} \\
-            output_cutesv_\${segment_clean}.fa \\
-            output_\${segment_clean}_SV.fasta
-          mv output_\${segment_clean}_SV.fasta \${consensus_file}
-        fi
-        # else: leave \${consensus_file} (the SNP consensus) untouched
+      samtools faidx genome_SV.fasta
+      for plik in preSV_output_*.fasta; do
+        segment_clean=\$(basename "\$plik" .fasta | sed 's/^preSV_output_//')
+        segment_id=\$(head -1 "\$plik" | sed 's/^>//' | cut -d'|' -f1)
+        samtools faidx genome_SV.fasta "\${segment_id}" > genome_SV_\${segment_clean}.fasta
+        insert_SV_python2.py "\$plik" genome_SV_\${segment_clean}.fasta merged_\${segment_clean}.fasta
+        sed -i '1s|_SV\$||' merged_\${segment_clean}.fasta
+        mv merged_\${segment_clean}.fasta output_\${segment_clean}.fasta
       done
 
-      # ---- 7. Concatenate per-segment files and normalize headers --------------
-      # Final headers must look like ">{segment}_SV" to match what consensus_nanopore
-      # produces for substitute_ref_genome -> nextalign -> nextclade -> snpEff.
-      cat output_*.fasta > consensus_masked_SV.fa
-      # Two-pass: handle SV-merged (>{segment}|{sampleId}_SV) then non-SV (>{segment}|{sampleId})
-      sed -i "s|\\|${sampleId}_SV|_SV|g" consensus_masked_SV.fa
-      sed -i "s|\\|${sampleId}|_SV|g" consensus_masked_SV.fa
+      #  This step is required only for integration with downstream illumina modules
+      # and we need to change name of the genome.fasta file to ref_genome.fasta
+      # and index it 
+      mv genome.fasta ref_genome.fasta
+      bwa index ref_genome.fasta
 
-      # ---- 8. QC gate: reject if >=90% of bases are N (mirrors manta lines 137-156)
-      NUMBER_OF_N=\$(cat consensus_masked_SV.fa | grep -v ">" | fold -w1 | sort | uniq -c | grep " N\$" | awk '{print \$1}')
-      SEQ_LENGTH=\$(cat consensus_masked_SV.fa | grep -v ">" | fold -w1 | wc -l)
-      if [ -z "\${NUMBER_OF_N}" ]; then
-        QC_status_exit="tak"
-      else
-        if [ \$(awk -v n="\${NUMBER_OF_N}" -v total="\${SEQ_LENGTH}" 'BEGIN {wynik=n/total; if (wynik < 0.9) print "1"; else print "0"}') -eq 1 ]; then
-          QC_status_exit="tak"
-        else
-          QC_status_exit="nie"
-        fi
-      fi
+      # prepare json for this step including list of files 
+      ls output_*.fasta | tr " " "\\n" >> list_of_fasta.txt
+      parse_make_consensus.py --status "tak" -o consensus.json --input_fastas list_of_fasta.txt --output_path "${params.results_dir}/${sampleId}"
+      cat  output_*.fasta >> output.fasta # all segments
+      sed -i s"|\\|${sampleId}||"g output.fasta
+      sed -i s"|\\|${sampleId}||"g consensus.json
     fi
     """
 }

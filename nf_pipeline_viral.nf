@@ -224,7 +224,10 @@ include { substitute_ref_genome } from "${modules}/common/substitute_ref.nf"
 // // // // Illumina
 include { consensus_illumina } from "${modules}/common/consensus.nf"
 // // // // Nanopore
+// // // // // INFL + RSV
 include { consensus_nanopore } from "${modules}/common/consensus.nf"
+// // // // // SARS-CoV-2
+include { consensus_nanopore_SARS as consensus_nanopore_SARS} from "${modules}/common/consensus.nf"
 // // End of Section // //
 
 
@@ -491,7 +494,7 @@ workflow {
 
         to_final_genome = lowCov_out.fasta.join(novel_genome_2_out.fasta_and_QC)
         to_final_genome = to_final_genome.join(medaka_varscan_integration_2_out.reference_genome)
-        prefinal_genome_out = consensus_nanopore(to_final_genome)
+        
 
         // SARS-CoV-2 Nanopore only: run cuteSV to recover amplicon-spanning SVs
         // (typically large deletions >= 0.8 * amplicon length) that medaka cannot
@@ -500,11 +503,13 @@ workflow {
         // the Illumina branch. substitute_ref_genome then restores the original
         // reference for snpEff/nextclade as before.
         if ( params.species  == 'SARS-CoV-2' ) {
+          prefinal_genome_out = consensus_nanopore_SARS(to_final_genome)
           to_cutesv = minimap2_2_out.bam_and_genome.join(detect_type_out.primers, by: 0)
           to_cutesv = to_cutesv.join(prefinal_genome_out.multiple_fastas, by: 0)
           cutesv_out = introduce_SV_with_cutesv(to_cutesv)
           final_genome_out = substitute_ref_genome(cutesv_out.fasta_refgenome_and_qc.join(detect_type_out.only_genome))
         } else {
+          prefinal_genome_out = consensus_nanopore(to_final_genome)
           final_genome_out = substitute_ref_genome(prefinal_genome_out.fasta_refgenome_and_qc.join(detect_type_out.only_genome))
         }
 
@@ -600,7 +605,11 @@ workflow {
   if(params.machine == 'Illumina') {
     for_json_aggregator = for_json_aggregator.join(final_genome_out.json) // tylko illumina
   } else if (params.machine == 'Nanopore') {
-    for_json_aggregator = for_json_aggregator.join(prefinal_genome_out.json) // tylko nanopore
+    if ( params.species  == 'SARS-CoV-2' ) {
+      for_json_aggregator = for_json_aggregator.join(cutesv_out.json) // tylko nanopore SARS-CoV-2
+    } else {  
+      for_json_aggregator = for_json_aggregator.join(prefinal_genome_out.json) // tylko nanopore INFL + RSV
+    }
   }
   
   for_json_aggregator = for_json_aggregator.join(pangolin_out.json)
