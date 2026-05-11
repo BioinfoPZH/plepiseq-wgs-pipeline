@@ -265,9 +265,9 @@ if __name__ == '__main__':
     vcf_output = sys.argv[5]
 
     #  uliniawianie sekwencji referencyjnej i "konsensusowej"
-    #  slownik_alignmentu = align_fasta_muscle(sekwencja_referencji, sekwencja_targetu)
+    slownik_alignmentu = align_fasta_muscle(sekwencja_referencji, sekwencja_targetu)
 
-    slownik_alignmentu = align_fasta_nw(sekwencja_referencji, sekwencja_targetu)
+    # slownik_alignmentu = align_fasta_nw(sekwencja_referencji, sekwencja_targetu)
 
     nazwa_referencji = open(sekwencja_referencji).readlines()[0].strip()
     nazwa_targetu = open(sekwencja_targetu).readlines()[0].strip()
