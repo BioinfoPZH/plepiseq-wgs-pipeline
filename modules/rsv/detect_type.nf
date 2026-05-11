@@ -108,7 +108,7 @@ if [ ${QC_STATUS} == "nie" ]; then
   touch genes.gtf
 else
   REFERENCE_GENOME_FASTA="/home/data/rsv/genomes/RSV/RSV.fasta"
-  minimap2 -a -x map-ont -t ${task.cpus} -o tmp.sam \${REFERENCE_GENOME_FASTA} ${reads}  >> ${log} 2>&1
+  minimap2 -a -x map-ont -t ${task.cpus} -o tmp.sam \${REFERENCE_GENOME_FASTA} ${reads} 
   samtools view -@ ${task.cpus} -Sb -o type_determination.bam -F 2052 tmp.sam
 
   ILE_A=`samtools view type_determination.bam | grep "PP525321" | wc -l `
