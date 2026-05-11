@@ -14,8 +14,8 @@ process introduce_SV_with_cutesv {
     tuple val(sampleId), \
           path(bam), \
           path(bai), \
-          path('ref_genome.fasta'), \
           val(QC_status_minimap), \
+          path('ref_genome.fasta'), \
           path('primers.bed'), \
           path(consensus_files), \
           path('genome.fasta'), \
@@ -32,7 +32,7 @@ process introduce_SV_with_cutesv {
     CUTESV_MIN_SUPPORT=2              # cuteSV --min_support (permissive caller threshold)
     CUTESV_MIN_READ_LEN=50            # cuteSV --min_read_len
     CUTESV_MIN_DV=10                  # post-filter: minimum variant-supporting reads
-    CUTESV_MIN_VAF=0.5                # post-filter: minimum DV/(DR+DV)
+    CUTESV_MIN_VAF=0.45                # post-filter: minimum DV/(DR+DV)
     CUTESV_MAX_SV_LENGTH=3000         # post-filter: upper bound on |SVLEN|
     CUTESV_MIN_SV_LENGTH_FALLBACK=500 # used only if amplicon-1 parsing fails
 

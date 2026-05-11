@@ -504,7 +504,7 @@ workflow {
         // reference for snpEff/nextclade as before.
         if ( params.species  == 'SARS-CoV-2' ) {
           prefinal_genome_out = consensus_nanopore_SARS(to_final_genome)
-          to_cutesv = minimap2_2_out.bam_and_genome.join(detect_type_out.primers, by: 0)
+          to_cutesv = merging_2_out.to_medaka.join(detect_type_out.primers, by: 0)
           to_cutesv = to_cutesv.join(prefinal_genome_out.multiple_fastas, by: 0)
           cutesv_out = introduce_SV_with_cutesv(to_cutesv)
           final_genome_out = substitute_ref_genome(cutesv_out.fasta_refgenome_and_qc.join(detect_type_out.only_genome))
