@@ -227,7 +227,7 @@ include { consensus_illumina } from "${modules}/common/consensus.nf"
 // // // // // INFL + RSV
 include { consensus_nanopore } from "${modules}/common/consensus.nf"
 // // // // // SARS-CoV-2
-include { consensus_nanopore_SARS as consensus_nanopore_SARS} from "${modules}/common/consensus.nf"
+include { consensus_nanopore_one_segment } from "${modules}/common/consensus.nf"
 // // End of Section // //
 
 
@@ -496,14 +496,17 @@ workflow {
         to_final_genome = to_final_genome.join(medaka_varscan_integration_2_out.reference_genome)
         
 
-        // SARS-CoV-2 Nanopore only: run cuteSV to recover amplicon-spanning SVs
-        // (typically large deletions >= 0.8 * amplicon length) that medaka cannot
-        // call. SVs are merged into the per-segment SNP consensus at the FASTA
-        // layer via insert_SV_python2.py, mirroring the manta integration on
-        // the Illumina branch. substitute_ref_genome then restores the original
-        // reference for snpEff/nextclade as before.
-        if ( params.species  == 'SARS-CoV-2' ) {
-          prefinal_genome_out = consensus_nanopore_SARS(to_final_genome)
+        // SARS-CoV-2 / RSV Nanopore: run cuteSV to recover amplicon-spanning
+        // SVs (typically large deletions >= 0.8 * amplicon length) that medaka
+        // cannot call. SVs are merged into the per-segment SNP consensus at the
+        // FASTA layer via insert_SV_python2.py, mirroring the manta integration
+        // on the Illumina branch. substitute_ref_genome then restores the
+        // original reference for snpEff/nextclade as before.
+        // For RSV schemes with amplicons longer than CUTESV_MAX_SV_LENGTH
+        // (e.g. RSV_WHO-2015 at ~4 kb) the filter is intentionally a no-op
+        // since medaka already resolves any internal deletion.
+        if ( params.species  == 'SARS-CoV-2' || params.species  == 'RSV' ) {
+          prefinal_genome_out = consensus_nanopore_one_segment(to_final_genome)
           to_cutesv = merging_2_out.to_medaka.join(detect_type_out.primers, by: 0)
           to_cutesv = to_cutesv.join(prefinal_genome_out.multiple_fastas, by: 0)
           cutesv_out = introduce_SV_with_cutesv(to_cutesv)

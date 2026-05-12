@@ -21,8 +21,8 @@ process consensus_illumina {
     """
 }
 
-process consensus_nanopore_SARS {
-    // For SARS-CoV-2 this module goes next to cuteSV step 
+process consensus_nanopore_one_segment {
+    // For SARS-CoV-2 and RSV this module goes next to cuteSV step 
     tag "consensus:${sampleId}"
     memory "20 GB"
     container  = params.main_image

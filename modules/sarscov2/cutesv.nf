@@ -28,13 +28,19 @@ process introduce_SV_with_cutesv {
 
     script:
     """
-    # cuteSV parameters 
+    # cuteSV parameters
     CUTESV_MIN_SUPPORT=2              # cuteSV --min_support (permissive caller threshold)
     CUTESV_MIN_READ_LEN=50            # cuteSV --min_read_len
     CUTESV_MIN_DV=10                  # post-filter: minimum variant-supporting reads
-    CUTESV_MIN_VAF=0.45                # post-filter: minimum DV/(DR+DV)
+    CUTESV_MIN_VAF=0.45               # post-filter: minimum DV/(DR+DV)
     CUTESV_MAX_SV_LENGTH=3000         # post-filter: upper bound on |SVLEN|
     CUTESV_MIN_SV_LENGTH_FALLBACK=500 # used only if amplicon-1 parsing fails
+
+    # depth-based confirmation (step 4b): reject calls without an amplicon-dropout
+    # signature even if they survived the per-call DV/VAF/length gate.
+    CUTESV_DEPTH_FLANK_BP=100         # bp of flank window on each side of the SV
+    CUTESV_MAX_INSIDE_RATIO=0.20      # reject if mean(depth_inside) / mean(depth_flank) > this
+    CUTESV_MIN_FLANK_DEPTH=20         # safety floor: below this the ratio is meaningless
 
 
     if [[ "${QC_status_minimap}" == "nie" || "${QC_status_consensus}" == "nie" ]]; then
@@ -109,12 +115,49 @@ process introduce_SV_with_cutesv {
         }
       }' cuteSV.deletions.genotyped.tsv > cuteSV.filtered.tsv
 
-      ## 5. Re-derive a small filtered VCF from the IDs that survived 
+      ## 4b. depth-based confirmation: a real amplicon-dropout deletion has
+      ##     near-zero coverage inside its breakpoints and full coverage in the
+      ##     flanks. cuteSV can be tricked by chimeric reads or repeat-induced
+      ##     soft-clips into nominating regions that have full coverage in
+      ##     between - those calls are rejected here. The full audit table is
+      ##     always emitted (depth_in / depth_flank / depth_ratio / depth_verdict)
+      ##     so post-hoc inspection stays cheap; cuteSV.depth_filtered.tsv then
+      ##     contains only the rows that survived.
+      {
+        echo -e "chrom\\tstart\\tend\\tid\\tlen\\tfilter\\tDR\\tDV\\tVAF\\tGQ\\tdepth_in\\tdepth_flank\\tdepth_ratio\\tdepth_verdict"
+        tail -n +2 cuteSV.filtered.tsv | while IFS=\$'\\t' read -r CHROM START END ID LEN FILTER DR DV VAF GQ; do
+          CHR_LEN=\$(awk -v c="\$CHROM" '\$1==c {print \$2; exit}' ref_genome.fasta.fai)
+          FLO=\$((START - CUTESV_DEPTH_FLANK_BP)); [ "\$FLO" -lt 1 ] && FLO=1
+          FHI=\$((END + CUTESV_DEPTH_FLANK_BP))
+          if [ -n "\$CHR_LEN" ] && [ "\$FHI" -gt "\$CHR_LEN" ]; then FHI=\$CHR_LEN; fi
+
+          D_IN=\$(samtools depth -a -r "\${CHROM}:\${START}-\${END}" ${bam} \\
+                 | awk '{s+=\$3;n++} END {if(n) printf "%.1f", s/n; else print 0}')
+          D_FL=\$(samtools depth -a -r "\${CHROM}:\${FLO}-\${START}" -r "\${CHROM}:\${END}-\${FHI}" ${bam} \\
+                 | awk '{s+=\$3;n++} END {if(n) printf "%.1f", s/n; else print 0}')
+
+          read RATIO VERDICT < <(awk -v din="\$D_IN" -v dfl="\$D_FL" \\
+                                      -v maxr="\${CUTESV_MAX_INSIDE_RATIO}" \\
+                                      -v minfl="\${CUTESV_MIN_FLANK_DEPTH}" \\
+              'BEGIN {
+                 ratio = (dfl > 0) ? din / dfl : 0
+                 verdict = (dfl >= minfl && ratio <= maxr) ? "pass" : "fail"
+                 printf "%.4f %s\\n", ratio, verdict
+               }')
+
+          echo -e "\${CHROM}\\t\${START}\\t\${END}\\t\${ID}\\t\${LEN}\\t\${FILTER}\\t\${DR}\\t\${DV}\\t\${VAF}\\t\${GQ}\\t\${D_IN}\\t\${D_FL}\\t\${RATIO}\\t\${VERDICT}"
+        done
+      } > cuteSV.depth_audit.tsv
+
+      awk -F'\\t' 'NR==1 || \$NF=="pass"' cuteSV.depth_audit.tsv > cuteSV.depth_filtered.tsv
+
+      ## 5. Re-derive a small filtered VCF from the IDs that survived
+      ##    both the per-call gate (step 4) and the depth gate (step 4b).
 
 
       bgzip -f cuteSV.genotyped.vcf
       tabix -p vcf cuteSV.genotyped.vcf.gz
-      awk 'NR>1 {print \$4}' cuteSV.filtered.tsv > cuteSV.passed_ids.txt
+      awk 'NR>1 {print \$4}' cuteSV.depth_filtered.tsv > cuteSV.passed_ids.txt
 
       if [ -s cuteSV.passed_ids.txt ]; then
         bcftools view -O z -o cuteSV.filtered.vcf.gz \\
