@@ -41,8 +41,8 @@ process freeBayes {
     
       bgzip --force detected_variants_freebayes_fix_high.vcf
       tabix detected_variants_freebayes_fix_high.vcf.gz
-    
-      bcftools filter --include "QUAL >= \${qual} & INFO/DP >=  ${params.min_cov}  & (SAF  + SAR)/(SRF + SRR + SAF + SAR) >= ${params.lower_ambig}  & (SAF  + SAR)/(SRF + SRR + SAF + SAR) <= ${params.upper_ambig} " \
+      # ambigous positions tend to have low qual according to freebayes
+      bcftools filter --include "INFO/DP >=  ${params.min_cov}  & (SAF  + SAR)/(SRF + SRR + SAF + SAR) >= ${params.lower_ambig}  & (SAF  + SAR)/(SRF + SRR + SAF + SAR) <= ${params.upper_ambig} " \
              detected_variants_freebayes_fix.vcf > tmp_low.vcf
     
       introduce_amb_2_vcf.py tmp_low.vcf \
