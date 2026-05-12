@@ -432,6 +432,7 @@ if [[ "$profile" != "slurm" && "$profile" != "local" ]]; then
 fi
 
 # Check if user provided correct species and if so set defaults
+## Warning most parameters are purely empirical to match expected EQA results
 if [[ "$species" == "SARS-CoV-2" ]]; then
 	[[ -z "${max_number_for_SV}" ]] && max_number_for_SV=200000
 	[[ -z "${min_median_for_SV}" ]] && min_median_for_SV=50
@@ -447,25 +448,35 @@ else
     exit 1
 fi
 
-# Check if user provided correct sequencing platform and if so set default values for the main program
+if [ ${species}  == 'SARS-CoV-2' ]; then
+    # RIVM thresholds from EQA
+    [[ -z "${lower_ambig}" ]] && lower_ambig=0.45
+    [[ -z "${upper_ambig}" ]] && upper_ambig=0.55
+    [[ -z "${min_cov}" ]] && min_cov=20
+    [[ -z "${mask}" ]] && mask=20
+else
+    # For RSV and Influenza we use EQA proposed thresholds (Pasteur)
+    [[ -z "${lower_ambig}" ]] && lower_ambig=0.4
+    [[ -z "${upper_ambig}" ]] && upper_ambig=0.6
+    [[ -z "${min_cov}" ]] && min_cov=10
+    [[ -z "${mask}" ]] && mask=10
+fi
+
+# Check if user provided correct sequencing platform and if so set 
+# default values for the main program
 if [[ "$machine" == "Illumina" ]]; then
 	[[ -z "${min_number_of_reads}" ]] && min_number_of_reads=1
 	[[ -z "${expected_genus_value}" ]] && expected_genus_value=5
 	[[ -z "${min_median_quality}" ]] && min_median_quality=0
 	[[ -z "${quality_initial}" ]] && quality_initial=5
 	[[ -z "${length}" ]] && length=90
-	[[ -z "${max_depth}" ]] && max_depth=600
-	[[ -z "${min_cov}" ]] && min_cov=20
-	[[ -z "${mask}" ]] && mask=20
+	[[ -z "${max_depth}" ]] && max_depth=1000
 	[[ -z "${quality_snp}" ]] && quality_snp=15
 	[[ -z "${pval}" ]] && pval=0.05
-	[[ -z "${lower_ambig}" ]] && lower_ambig=0.45
-	[[ -z "${upper_ambig}" ]] && upper_ambig=0.55
 	[[ -z "${window_size}" ]] && window_size=50 
 	[[ -z "${min_mapq}" ]] && min_mapq=30
 	[[ -z "${quality_for_coverage}" ]] && quality_for_coverage=10
 	[[ -z "${freyja_minq}" ]] && freyja_minq=20
-
 elif [[ "$machine" == "Nanopore" ]]; then
 	[[ -z "${freyja_minq}" ]] && freyja_minq=2
 	[[ -z "${bed_offset}" ]] && bed_offset=10
@@ -477,26 +488,27 @@ elif [[ "$machine" == "Nanopore" ]]; then
 	if [ ${species}  == 'SARS-CoV-2' ]; then
 		[[ -z "${medaka_chunk_len}" ]] && medaka_chunk_len=5000  
 		[[ -z "${medaka_chunk_overlap}" ]] && medaka_chunk_overlap=4000
+        [[ -z "${first_round_pval}" ]] && first_round_pval=0.05
+        [[ -z "${max_depth}" ]] && max_depth=3000
 	elif [ ${species}  == 'Influenza' ]; then
-		[[ -z "${medaka_chunk_len}" ]] && medaka_chunk_len=1000  
-                [[ -z "${medaka_chunk_overlap}" ]] && medaka_chunk_overlap=500
+		[[ -z "${medaka_chunk_len}" ]] && medaka_chunk_len=800  
+        [[ -z "${medaka_chunk_overlap}" ]] && medaka_chunk_overlap=400
+        [[ -z "${first_round_pval}" ]] && first_round_pval=0.25
+        [[ -z "${max_depth}" ]] && max_depth=2000
 	elif [ ${species}  == 'RSV' ]; then
 		[[ -z "${medaka_chunk_len}" ]] && medaka_chunk_len=5000
-                [[ -z "${medaka_chunk_overlap}" ]] && medaka_chunk_overlap=4000
+        [[ -z "${medaka_chunk_overlap}" ]] && medaka_chunk_overlap=4000
+        [[ -z "${first_round_pval}" ]] && first_round_pval=0.05
+        [[ -z "${max_depth}" ]] && max_depth=3000
 	fi
 	[[ -z "${min_number_of_reads}" ]] && min_number_of_reads=1
 	[[ -z "${expected_genus_value}" ]] && expected_genus_value=5
 	[[ -z "${min_median_quality}" ]] && min_median_quality=0
 	[[ -z "${quality_initial}" ]] && quality_initial=2
-	[[ -z "${max_depth}" ]] && max_depth=600
-  	[[ -z "${min_cov}" ]] && min_cov=50
-  	[[ -z "${mask}" ]] && mask=50
+
   	[[ -z "${quality_snp}" ]] && quality_snp=5
   	[[ -z "${pval}" ]] && pval=0.05
-	[[ -z "${first_round_pval}" ]] && first_round_pval=0.05
 	[[ -z "${second_round_pval}" ]] && second_round_pval=0.05
-  	[[ -z "${lower_ambig}" ]] && lower_ambig=0.45
-  	[[ -z "${upper_ambig}" ]] && upper_ambig=0.55
   	[[ -z "${window_size}" ]] && window_size=50
 	[[ -z "${quality_for_coverage}" ]] && quality_for_coverage=1
 
