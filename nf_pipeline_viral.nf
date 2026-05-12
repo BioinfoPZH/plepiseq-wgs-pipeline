@@ -608,10 +608,10 @@ workflow {
   if(params.machine == 'Illumina') {
     for_json_aggregator = for_json_aggregator.join(final_genome_out.json) // tylko illumina
   } else if (params.machine == 'Nanopore') {
-    if ( params.species  == 'SARS-CoV-2' ) {
-      for_json_aggregator = for_json_aggregator.join(cutesv_out.json) // tylko nanopore SARS-CoV-2
+    if ( params.species  == 'SARS-CoV-2' || params.species  == 'RSV' ) {
+      for_json_aggregator = for_json_aggregator.join(cutesv_out.json) // tylko nanopore SARS-CoV-2 + RSV
     } else {  
-      for_json_aggregator = for_json_aggregator.join(prefinal_genome_out.json) // tylko nanopore INFL + RSV
+      for_json_aggregator = for_json_aggregator.join(prefinal_genome_out.json) // tylko nanopore INFL 
     }
   }
   
