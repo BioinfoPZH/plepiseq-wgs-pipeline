@@ -177,11 +177,14 @@ def prep_mutation_list(slownik, ref_name, target_name, n=1):
         poprzednia_wartosc = wartosc
 
     # gdyby mutacja byla na ostatnim elemencie
-    if wartosc == 1:
-        try:
-            lista_zakresow.append([start, koniec])
-        except Exception:
-            pass
+    # uwaga: w glownej petli 'koniec' jest ustawiane tylko gdy okno 1-rek
+    # zostaje zamkniete przez pozniejsze 0; jesli alignment konczy sie
+    # w trakcie otwartego okna (np. muscle umieszcza '-' na ostatniej
+    # kolumnie), 'koniec' moze byc nieaktualne z poprzedniego zamknietego
+    # zakresu - dlatego domykamy okno jawnie na len(stany).
+    if len(stany) > 0 and stany[-1] == 1:
+        koniec = len(stany)
+        lista_zakresow.append([start, koniec])
 
     if len(lista_zakresow) == 0:
         # brak mutacji
