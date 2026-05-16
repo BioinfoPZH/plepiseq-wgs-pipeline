@@ -482,7 +482,7 @@ elif [[ "$machine" == "Nanopore" ]]; then
 	[[ -z "${bed_offset}" ]] && bed_offset=10
 	[[ -z "${extra_bed_offset}" ]] && extra_bed_offset=10 
 	[[ -z "${min_mapq}" ]] && min_mapq=30
-	[[ -z "${window_size}" ]] && window_size=50
+	
 	[[ -z "${length}" ]] && length=0.49 # for nanopore nanopore min length is relative to the expected segment/amplikon length
 	[[ -z "${medaka_model}" ]] && medaka_model="r941_min_sup_variant_g507" # Flow cell v9.4.1, for first round of medaka for the second round we use r941_min_sup_g507
 	if [ ${species}  == 'SARS-CoV-2' ]; then
@@ -490,16 +490,19 @@ elif [[ "$machine" == "Nanopore" ]]; then
 		[[ -z "${medaka_chunk_overlap}" ]] && medaka_chunk_overlap=4000
         [[ -z "${first_round_pval}" ]] && first_round_pval=0.05
         [[ -z "${max_depth}" ]] && max_depth=3000
+        [[ -z "${window_size}" ]] && window_size=50
 	elif [ ${species}  == 'Influenza' ]; then
 		[[ -z "${medaka_chunk_len}" ]] && medaka_chunk_len=800  
         [[ -z "${medaka_chunk_overlap}" ]] && medaka_chunk_overlap=400
         [[ -z "${first_round_pval}" ]] && first_round_pval=0.25
         [[ -z "${max_depth}" ]] && max_depth=2000
+        [[ -z "${window_size}" ]] && window_size=50
 	elif [ ${species}  == 'RSV' ]; then
-		[[ -z "${medaka_chunk_len}" ]] && medaka_chunk_len=5000
-        [[ -z "${medaka_chunk_overlap}" ]] && medaka_chunk_overlap=4000
+		[[ -z "${medaka_chunk_len}" ]] && medaka_chunk_len=10000
+        [[ -z "${medaka_chunk_overlap}" ]] && medaka_chunk_overlap=8000
         [[ -z "${first_round_pval}" ]] && first_round_pval=0.05
         [[ -z "${max_depth}" ]] && max_depth=3000
+        [[ -z "${window_size}" ]] && window_size=100
 	fi
 	[[ -z "${min_number_of_reads}" ]] && min_number_of_reads=1
 	[[ -z "${expected_genus_value}" ]] && expected_genus_value=5
