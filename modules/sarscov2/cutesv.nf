@@ -38,7 +38,7 @@ process introduce_SV_with_cutesv {
 
     # depth-based confirmation (step 4b): reject calls without an amplicon-dropout
     # signature even if they survived the per-call DV/VAF/length gate.
-    CUTESV_DEPTH_FLANK_BP=100         # bp of flank window on each side of the SV
+    CUTESV_DEPTH_FLANK_BP=400         # bp of flank window on each side of the SV
     CUTESV_MAX_INSIDE_RATIO=0.20      # reject if mean(depth_inside) / mean(depth_flank) > this
     CUTESV_MIN_FLANK_DEPTH=20         # safety floor: below this the ratio is meaningless
 
