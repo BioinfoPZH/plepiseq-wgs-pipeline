@@ -29,6 +29,7 @@ if qc_status == "nie":
        f.write("This module was eneterd with failed QC and poduced no valid output")
     json_output["status"] = "nie"
     json_output["error_message"] = "This module was eneterd with failed QC and poduced no valid output"
+    json_output["genome_file_merged"] = f"${params.results_dir}}/${x}/${x}.fasta"
 else:
     json_output["status"] = "tak"
     records = SeqIO.parse(fasta_file, "fasta")
@@ -39,7 +40,7 @@ else:
             f.write(f">{record.id}\\n{str(record.seq)}")
 
     json_output["file_data"] = tmp_list
-
+    json_output["genome_file_merged"] = f"${params.results_dir}}/${x}/${x}.fasta"
 with open("fasta_info.json", 'w') as f1:
         f1.write(json.dumps(json_output, indent = 4))
 
