@@ -64,6 +64,7 @@ process run_cgMLST {
     else
          # This should never happen as earlier modules should always switch QC_status to "nie" 
          echo "Provided species $SPECIES is not part of any cgMLST databases" >> log.log
+         touch cgMLST.txt; touch cgMLST_all_identical_allels.txt
     fi # koniec if-a na zly gatunek
     cat log.log | cut -f1,2 > cgMLST.txt
   fi # koniec if-a na zle QC
