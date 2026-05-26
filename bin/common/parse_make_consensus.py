@@ -46,7 +46,11 @@ def parse_fasta(plik_fasta):
               type=str,  required=False, default="")
 @click.option('-o', '--output', help='[Output] Name of a file with json output',
               type=str,  required=True)
-def main_program(status, output, input_fastas, output_path, error=""):
+@click.option('-g', '--genome_file_merged',
+              help='[INPUT] Path to the published file with all segments concatenated. '
+                   'Stored as-is under the genome_file_merged key in the JSON output.',
+              type=str, required=False, default="")
+def main_program(status, output, input_fastas, output_path, error="", genome_file_merged=""):
     total_length_value = 0
     number_of_Ns_value = 0
     number_of_ambiguous_value = 0
@@ -56,6 +60,8 @@ def main_program(status, output, input_fastas, output_path, error=""):
                        "total_length_value": total_length_value,
                        "number_of_Ns_value": number_of_Ns_value,
                        "number_of_ambiguous_value": number_of_ambiguous_value}
+        if genome_file_merged:
+            json_output["genome_file_merged"] = genome_file_merged
     else:
         file_data = []
         with open(input_fastas) as f:
@@ -77,6 +83,8 @@ def main_program(status, output, input_fastas, output_path, error=""):
             "number_of_ambiguous_value": number_of_ambiguous_value,
             "file_data": file_data
         }
+        if genome_file_merged:
+            json_output["genome_file_merged"] = genome_file_merged
     with open(output, 'w') as f1:
         f1.write(json.dumps(json_output, ensure_ascii=False, indent=4))
 

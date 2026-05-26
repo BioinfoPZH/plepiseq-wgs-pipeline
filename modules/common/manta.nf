@@ -2,6 +2,7 @@ process introduce_SV_with_manta {
     // This module iterates over all bam_file provided to this module via picard_downsample
     tag "manta:$sampleId"
     publishDir "${params.results_dir}/${sampleId}/", mode: 'copy', pattern: "output*fasta"
+    publishDir "${params.results_dir}/${sampleId}/", mode: 'copy', pattern: "${sampleId}.fasta"
     container = params.manta_image
     cpus { params.threads > 15 ? 15 : params.threads }
     memory "20 GB"
@@ -18,6 +19,7 @@ process introduce_SV_with_manta {
     tuple val(sampleId), path('consensus_masked_SV.fa'),  env(QC_status_exit), emit: fasta_and_qc
     tuple val(sampleId), path('consensus.json'), emit: json
     tuple val(sampleId), path('output_*.fasta'), emit: to_pubdir
+    tuple val(sampleId), path("${sampleId}.fasta"), emit: merged_fasta
     // Dal ulatwienia ? na koniec tego segmentu polaczmy wszystkie segmenty w jeden plik, a jelsi dany modul downstream
     // bedzie wymagal sekwencji konkretnego segmentu to tam zrobimy split-a
 
@@ -38,13 +40,15 @@ process introduce_SV_with_manta {
       # both consensus module and picard failed, dummy output
       touch consensus_masked_SV.fa
       touch output_dummy.fasta
+      # Emit a minimal valid fasta so downstream zawsze ma sciezke pod genome_file_merged
+      printf '>dummy\\nN\\n' > ${sampleId}.fasta
       QC_status_exit="nie"
       if [ "${params.lan}" == "pl" ]; then
         ERR_MSG="Ten moduł został uruchomiony na próbce, która nie przeszła kontroli jakości."
       else
         ERR_MSG="This sample failed a QC analysis during an earlier phase of the analysis."
       fi
-      python3 /home/parse_make_consensus.py --status "nie" --error "\${ERR_MSG}" -o consensus.json
+      python3 /home/parse_make_consensus.py --status "nie" --error "\${ERR_MSG}" -o consensus.json --genome_file_merged "${params.results_dir}/${sampleId}/${sampleId}.fasta"
 
     elif [[ ${QC_status_picard} == "nie" &&  ${QC_status_consensus} == "tak" ]]; then
       # downsampling failed for ALL segemtns, but consensus produced valid output, ALL input fastas becomes  output files for their respective segemnts
@@ -58,10 +62,13 @@ process introduce_SV_with_manta {
 
       done
       
+      # Polaczony plik z wszystkimi segmentami (czyste naglowki, dla uzytkownika)
+      cat output_*.fasta > ${sampleId}.fasta
+
       # make json
       ls output*.fasta | tr " " "\\n" >> list_of_fasta.txt
-      python3 /home/parse_make_consensus.py --status "tak" -o consensus.json --input_fastas list_of_fasta.txt --output_path "${params.results_dir}/${sampleId}"
-      
+      python3 /home/parse_make_consensus.py --status "tak" -o consensus.json --input_fastas list_of_fasta.txt --output_path "${params.results_dir}/${sampleId}" --genome_file_merged "${params.results_dir}/${sampleId}/${sampleId}.fasta"
+
       # merge fastas of individual segments to a single file
       cat output*.fasta >> consensus_masked_SV.fa
       # for now downstream modules require _SV in header's
@@ -120,9 +127,12 @@ process introduce_SV_with_manta {
         fi # koniec if-a na zly coverage
       done # koniec petli na teracje po segmentach
 
+      # Polaczony plik z wszystkimi segmentami (czyste naglowki, dla uzytkownika)
+      cat output_*.fasta > ${sampleId}.fasta
+
       # create json
       ls output*.fasta | tr " " "\\n" >> list_of_fasta.txt
-      python3 /home/parse_make_consensus.py --status "tak" -o consensus.json --input_fastas list_of_fasta.txt --output_path "${params.results_dir}/${sampleId}"
+      python3 /home/parse_make_consensus.py --status "tak" -o consensus.json --input_fastas list_of_fasta.txt --output_path "${params.results_dir}/${sampleId}" --genome_file_merged "${params.results_dir}/${sampleId}/${sampleId}.fasta"
       
       # merge all fasta into a single file
       cat output*.fasta >> consensus_masked_SV.fa
@@ -140,12 +150,12 @@ process introduce_SV_with_manta {
      if [ -z \${NUMBER_OF_N} ]; then 
         # No Ns in a sequence 
         QC_status_exit="tak"
-        python3 /home/parse_make_consensus.py --status "\${QC_status_exit}" -o consensus.json --input_fastas list_of_fasta.txt --output_path "${params.results_dir}/${sampleId}"
+        python3 /home/parse_make_consensus.py --status "\${QC_status_exit}" -o consensus.json --input_fastas list_of_fasta.txt --output_path "${params.results_dir}/${sampleId}" --genome_file_merged "${params.results_dir}/${sampleId}/${sampleId}.fasta"
       else
         if [ `awk -v n="\${NUMBER_OF_N}" -v total="\${SEQ_LENGTH}" 'BEGIN {wynik=n/total; if (wynik < 0.9) print "1"; else print "0"}'` -eq 1 ]; then
           # less than 90% of Ns in sequence we can continue ...
           QC_status_exit="tak"
-          python3 /home/parse_make_consensus.py --status "\${QC_status_exit}" -o consensus.json --input_fastas list_of_fasta.txt --output_path "${params.results_dir}/${sampleId}"
+          python3 /home/parse_make_consensus.py --status "\${QC_status_exit}" -o consensus.json --input_fastas list_of_fasta.txt --output_path "${params.results_dir}/${sampleId}" --genome_file_merged "${params.results_dir}/${sampleId}/${sampleId}.fasta"
         else
           QC_status_exit="nie"
           if [ "${params.lan}" == "pl" ]; then
@@ -153,7 +163,7 @@ process introduce_SV_with_manta {
           else
             ERR_MSG="The genomic sequence for this sample contains more than 90% of Ns. Downstream modules witll not execute."
           fi
-          python3 /home/parse_make_consensus.py --status "nie" --error "\${ERR_MSG}" -o consensus.json 
+          python3 /home/parse_make_consensus.py --status "nie" --error "\${ERR_MSG}" -o consensus.json --genome_file_merged "${params.results_dir}/${sampleId}/${sampleId}.fasta"
         fi
       fi
 

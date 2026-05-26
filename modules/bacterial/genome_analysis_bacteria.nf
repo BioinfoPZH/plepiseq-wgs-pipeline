@@ -43,7 +43,7 @@ process extract_final_stats {
   tuple val(x), path('Summary_statistics.txt'), path('Summary_statistics_with_reject.txt'), env(QC_status_exit), emit: STATISTICS
   tuple val(x), path(fasta), env(QC_status_exit), emit: GENOME
   tuple val(x), path('bacterial_genome_data.json'), emit: json
-  tuple val(x), path('${x}.fasta'), emit: to_pubdir
+  tuple val(x), path("${x}.fasta"), emit: to_pubdir
   script:
   """
   if [[ "${GENUS}" == *"Salmo"* ]]; then
@@ -61,7 +61,8 @@ process extract_final_stats {
   if [ ${QC_status} == "nie" ]; then
      touch Summary_statistics.txt
      touch Summary_statistics_with_reject.txt
-     echo -e ">dummy\nN" > ${x}.fasta
+     touch ${x}.fasta
+     echo -e ">dummy\\nN" >> ${x}.fasta
      
      if [ "${params.lan}" == "pl" ]; then
        ERR_MSG="Ten moduł został uruchomiony na próbce, która nie przeszła kontroli jakości."
@@ -72,7 +73,7 @@ process extract_final_stats {
      QC_status_exit=`python /opt/docker/EToKi/externals/extract_final_stats_parser.py -l ${params.L50} -n ${params.contig_number} -g \${GENOME_SIZE} -c ${params.min_genome_length} -p ${params.final_coverage} -s ${QC_status} -r "\${ERR_MSG}" -o bacterial_genome_data.json --lan ${params.lan}`
   else
     cat $fasta $fasta_reject >> all_contigs.fasta
-    cp $fasta ${x}.fasta
+    cat $fasta >> ${x}.fasta
     python  /opt/docker/EToKi/externals/calculate_stats.py $fasta all_contigs.fasta
     
     QC_status_exit=`python /opt/docker/EToKi/externals/extract_final_stats_parser.py -i Summary_statistics.txt -j Summary_statistics_with_reject.txt -l ${params.L50} -n ${params.contig_number} -g \${GENOME_SIZE} -c ${params.min_genome_length} -p ${params.final_coverage} -s tak -o bacterial_genome_data.json --lan ${params.lan}`

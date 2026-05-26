@@ -64,6 +64,7 @@ process consensus_nanopore {
     memory "20 GB"
     container  = params.main_image
     publishDir "${params.results_dir}/${sampleId}", mode: 'copy', pattern: "output_*.fasta"
+    publishDir "${params.results_dir}/${sampleId}", mode: 'copy', pattern: "${sampleId}.fasta"
     cpus 1
     input:
     tuple val(sampleId), path(masked_ref_genome_fa), path(sample_genome), val(QC_status), path('genome.fasta')
@@ -73,6 +74,7 @@ process consensus_nanopore {
     tuple val(sampleId), path("output_*.fasta"), val(QC_status), emit: multiple_fastas
     tuple val(sampleId), path('output.fasta'), path('ref_genome.*'), val(QC_status), emit: fasta_refgenome_and_qc
     tuple val(sampleId), path("consensus.json"), emit: json
+    tuple val(sampleId), path("${sampleId}.fasta"), emit: merged_fasta
 
     script:
     """
@@ -81,12 +83,14 @@ process consensus_nanopore {
       touch output_dummy.fasta
       touch ref_genome.fasta
       touch ref_genome.fasta.fai
+      # Emit a minimal valid fasta so downstream zawsze ma sciezke pod genome_file_merged
+      printf '>dummy\\nN\\n' > ${sampleId}.fasta
       if [ "${params.lan}" == "pl" ]; then
         ERR_MSG="Ten moduł został uruchomiony na próbce, która nie przeszła kontroli jakości."
       else
         ERR_MSG="This sample failed a QC analysis during an earlier phase of the analysis."
       fi
-      parse_make_consensus.py --status "nie" --error "\${ERR_MSG}" -o consensus.json
+      parse_make_consensus.py --status "nie" --error "\${ERR_MSG}" -o consensus.json --genome_file_merged "${params.results_dir}/${sampleId}/${sampleId}.fasta"
     else
       if [ ${params.species} == "Influenza" ]; then
         cat ${sample_genome} | grep ">" | awk '{print substr(\$0,2), 0, 12}' | tr " " "\t" >> bed.bed
@@ -100,9 +104,14 @@ process consensus_nanopore {
       # This step is required only for integration with downstream illumina modules
       cp genome.fasta ref_genome.fasta
       bwa index ref_genome.fasta
+
+      # Polaczony plik z wszystkimi segmentami (czyste naglowki, dla uzytkownika).
+      # Tworzony PRZED sed'em ktory dodaje _SV do output.fasta (uzywany downstream).
+      cat output_*.fasta > ${sampleId}.fasta
+
       # prepare json for this step
       ls output_*.fasta | tr " " "\\n" >> list_of_fasta.txt
-      parse_make_consensus.py --status "tak" -o consensus.json --input_fastas list_of_fasta.txt --output_path "${params.results_dir}/${sampleId}"
+      parse_make_consensus.py --status "tak" -o consensus.json --input_fastas list_of_fasta.txt --output_path "${params.results_dir}/${sampleId}" --genome_file_merged "${params.results_dir}/${sampleId}/${sampleId}.fasta"
       cat  output_*.fasta >> output.fasta 
       sed -i s"|\\|${sampleId}|_SV|"g output.fasta
       sed -i s"|\\|${sampleId}||"g consensus.json
