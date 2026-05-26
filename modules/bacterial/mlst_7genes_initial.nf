@@ -39,13 +39,18 @@ process run_initial_mlst_illumina {
     elif [ ${GENUS} == "Campylobacter" ]; then
       # w tej bazie podgatunki campylo okreslane sa typowo z cjejuni, clari itd .. 
       python /opt/docker/mlst/mlst.py -i ${read_1} ${read_2} -s c${SPECIES} -p /db/mlst_db/ -mp kma -t tmp/
+    elif [ ${GENUS} == "Legionella" ] && [ -f /db/mlst_db/legionella.fsa ]; then
+      # Legionella obslugujemy tylko gdy baza MLST jest dostepna
+      # w przeciwnym wypadku probka trafia do galezi "else" i traktowana jest jak gatunek nieobslugiwany
+      python /opt/docker/mlst/mlst.py -i ${read_1} ${read_2} -s legionella -p /db/mlst_db/ -mp kma -t tmp/
+       
     else
       # We encountered wrong genus
       
      if [ "${params.lan}" == "pl" ]; then
-        ERR_MSG=`echo Ten program jest przeznaczony do analizy bakterii z rodzajów: Salmonella, Escherichia oraz Campylobacter. W tej próbce wykryto: ${GENUS}`
+        ERR_MSG=`echo Ten program jest przeznaczony do analizy bakterii z rodzajów: Salmonella, Escherichia, Campylobacter oraz Legionella \\(o ile zainstalowano baze MLST dla Legionella\\). W tej próbce wykryto: ${GENUS}`
       else
-        ERR_MSG=`echo This program works with the following genera: Salmonella, Escherichia, or Campylobacter. Following genus was identified in this sample is: ${GENUS}`
+        ERR_MSG=`echo This program works with the following genera: Salmonella, Escherichia, Campylobacter, or Legionella \\(provided the Legionella MLST database is installed\\). Following genus was identified in this sample is: ${GENUS}`
       fi
 
       QC_status_exit=`python /opt/docker/EToKi/externals/initial_mlst_parser.py -s blad -r "\${ERR_MSG}" -o initial_mlst.json --lan ${params.lan}`
@@ -98,11 +103,15 @@ process run_initial_mlst_nanopore {
     elif [ ${GENUS} == "Campylobacter" ]; then
     # w tej bazie podgatunki campylo okreslane sa typowo z cjejuni, clari itd ..
     python /opt/docker/mlst/mlst.py -i ${reads} -s c${SPECIES} -p /db/mlst_db/ -mp kma -t tmp/
+    elif [ ${GENUS} == "Legionella" ] && [ -f /db/mlst_db/legionella.fsa ]; then
+    # Legionella obslugujemy tylko gdy baza MLST jest dostepna
+    # w przeciwnym wypadku probka trafia do galezi "else" i traktowana jest jak gatunek nieobslugiwany
+    python /opt/docker/mlst/mlst.py -i ${reads} -s legionella -p /db/mlst_db/ -mp kma -t tmp/
     else
       if [ "${params.lan}" == "pl" ]; then
-        ERR_MSG=`echo Ten modul jest przeznaczony do analizy bakterii z rodzajów: Salmonella, Escherichia oraz Campylobacter. W tej próbce wykryto: ${GENUS}`
+        ERR_MSG=`echo Ten modul jest przeznaczony do analizy bakterii z rodzajów: Salmonella, Escherichia, Campylobacter oraz Legionella \\(o ile zainstalowano baze MLST dla Legionella\\). W tej próbce wykryto: ${GENUS}`
       else
-        ERR_MSG=`echo This module works with the following genera: Salmonella, Escherichia, or Campylobacter. Following genus was identified in this sample is: ${GENUS}`
+        ERR_MSG=`echo This module works with the following genera: Salmonella, Escherichia, Campylobacter, or Legionella \\(provided the Legionella MLST database is installed\\). Following genus was identified in this sample is: ${GENUS}`
       fi
 
       QC_status_exit=`python /opt/docker/EToKi/externals/initial_mlst_parser.py -s blad -r "\${ERR_MSG}" -o initial_mlst.json --lan ${params.lan}`
