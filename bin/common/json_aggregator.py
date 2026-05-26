@@ -184,10 +184,11 @@ def json_aggregator(args):
     if args.consensus:
         dane = json.load(open(args.consensus))
         # consensus has data from two tabs
-        output["output"]["viral_genome_data"]["total_length_value"] = dane["total_length_value"]
-        output["output"]["viral_genome_data"]["number_of_Ns_value"] = dane["number_of_Ns_value"]
-        del dane['total_length_value']
-        del dane["number_of_Ns_value"]
+        output["output"]["viral_genome_data"]["total_length_value"] = dane.pop("total_length_value")
+        output["output"]["viral_genome_data"]["number_of_Ns_value"] = dane.pop("number_of_Ns_value")
+        # number_of_ambiguous_value was added later; tolerate older consensus JSONs without it
+        if "number_of_ambiguous_value" in dane:
+            output["output"]["viral_genome_data"]["number_of_ambiguous_value"] = dane.pop("number_of_ambiguous_value")
         output["output"]["genome_files_data"] = dane
 
     if args.snpeff:

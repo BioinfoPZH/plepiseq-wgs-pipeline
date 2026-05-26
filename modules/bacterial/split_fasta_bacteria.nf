@@ -18,29 +18,33 @@ process run_split_fasta {
 from Bio import SeqIO
 import json
 
-qc_status="$QC_status"
-fasta_file="$fasta"
+qc_status = "$QC_status"
+fasta_file = "$fasta"
+
+
+genome_file_merged = "${params.results_dir}/${x}/${x}.fasta"
+segment_file_dir = "${params.results_dir}/${x}/fastas"
 
 json_output = {}
 tmp_list = []
 
 if qc_status == "nie":
     with open("dummy.fasta", "w") as f:
-       f.write("This module was eneterd with failed QC and poduced no valid output")
+        f.write("This module was eneterd with failed QC and poduced no valid output")
     json_output["status"] = "nie"
     json_output["error_message"] = "This module was eneterd with failed QC and poduced no valid output"
-    json_output["genome_file_merged"] = f"${params.results_dir}}/${x}/${x}.fasta"
+    json_output["genome_file_merged"] = genome_file_merged
 else:
     json_output["status"] = "tak"
     records = SeqIO.parse(fasta_file, "fasta")
     for record in records:
-        tmp_list.append({"segment_name" : record.id,
-                         "segment_file" : f"${params.results_dir}/${x}/fastas/{record.id}.fasta"})
+        tmp_list.append({"segment_name": record.id,
+                         "segment_file": f"{segment_file_dir}/{record.id}.fasta"})
         with open(f"{record.id}.fasta", "w") as f:
             f.write(f">{record.id}\\n{str(record.seq)}")
 
     json_output["file_data"] = tmp_list
-    json_output["genome_file_merged"] = f"${params.results_dir}/${x}/${x}.fasta"
+    json_output["genome_file_merged"] = genome_file_merged
 with open("fasta_info.json", 'w') as f1:
         f1.write(json.dumps(json_output, indent = 4))
 

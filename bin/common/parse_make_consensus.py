@@ -11,9 +11,13 @@ import json
 from Bio import SeqIO
 
 
+AMBIGUOUS_NUCLEOTIDES = {'R', 'Y', 'S', 'W', 'K', 'M', 'B', 'D', 'H', 'V'}
+
+
 def parse_fasta(plik_fasta):
     total_length = 0
     total_N = 0
+    total_ambiguous = 0
     segment = None
 
     record = SeqIO.parse(plik_fasta, "fasta")
@@ -22,9 +26,11 @@ def parse_fasta(plik_fasta):
         for element in str(r.seq).upper():  # Iterate over sequence
             if element == 'N':
                 total_N += 1
+            elif element in AMBIGUOUS_NUCLEOTIDES:
+                total_ambiguous += 1
             total_length += 1
 
-    return segment, total_length, total_N
+    return segment, total_length, total_N, total_ambiguous
 
 
 @click.command()
@@ -43,25 +49,32 @@ def parse_fasta(plik_fasta):
 def main_program(status, output, input_fastas, output_path, error=""):
     total_length_value = 0
     number_of_Ns_value = 0
+    number_of_ambiguous_value = 0
     if status != "tak":
         json_output = {"status": status,
                        "error_message": error,
                        "total_length_value": total_length_value,
-                       "number_of_Ns_value": number_of_Ns_value}
+                       "number_of_Ns_value": number_of_Ns_value,
+                       "number_of_ambiguous_value": number_of_ambiguous_value}
     else:
         file_data = []
         with open(input_fastas) as f:
             for line in f:
-                segment, segment_length, segment_N = parse_fasta(line.rstrip())
+                segment, segment_length, segment_N, segment_ambiguous = parse_fasta(line.rstrip())
                 total_length_value += segment_length
                 number_of_Ns_value += segment_N
+                number_of_ambiguous_value += segment_ambiguous
                 file_data.append({"segment_name": segment,
-                                  "segment_file": f'{output_path}/{line.rstrip()}'})
+                                  "segment_file": f'{output_path}/{line.rstrip()}',
+                                  "total_length_value": segment_length,
+                                  "number_of_Ns_value": segment_N,
+                                  "number_of_ambiguous_value": segment_ambiguous})
 
         json_output = {
             "status": status,
             "total_length_value": total_length_value,
             "number_of_Ns_value": number_of_Ns_value,
+            "number_of_ambiguous_value": number_of_ambiguous_value,
             "file_data": file_data
         }
     with open(output, 'w') as f1:
