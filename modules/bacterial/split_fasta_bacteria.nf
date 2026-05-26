@@ -35,7 +35,7 @@ else:
     records = SeqIO.parse(fasta_file, "fasta")
     for record in records:
         tmp_list.append({"segment_name" : record.id,
-                         "segment_file" : f"${params.results_dir}/${x}/fastas/{record.id}.fasta")
+                         "segment_file" : f"${params.results_dir}/${x}/fastas/{record.id}.fasta"})
         with open(f"{record.id}.fasta", "w") as f:
             f.write(f">{record.id}\\n{str(record.seq)}")
 
