@@ -33,8 +33,9 @@ FEATURES             Location/Qualifiers
                      /geo_loc_name="USA: Philadelphia, PA"
                      /collection_date="2017"
      gene            139..558
-                     /gene="NS
+                     /gene="NS1"
      CDS             139..558
+                     /gene="NS1"
                      /codon_start=1
                      /product="nonstructural protein 1"
                      /protein_id="WXU37050.1"
