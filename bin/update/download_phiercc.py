@@ -146,7 +146,7 @@ def _determine_update_status(
             "metrics": {"api_url": PHIERCC_API_LATEST_RELEASE},
         }
         update_decision = {"mode": "release_tag", "result": "error", "message": msg, "first_build": True,
-                           "timestamp_local": "", "timestamp_remote": ""}
+                           "version_local": "", "version_remote": ""}
         return milestone, update_decision, False, ""
 
     baseline_path = output_dir / baseline_filename
@@ -189,8 +189,8 @@ def _determine_update_status(
             "result": "updated",
             "message": msg,
             "first_build": first_build,
-            "timestamp_local": local_tag,
-            "timestamp_remote": remote_tag,
+            "version_local": local_tag,
+            "version_remote": remote_tag,
         }
         return milestone, update_decision, True, remote_tag
 
@@ -215,8 +215,8 @@ def _determine_update_status(
         "result": "latest_version_present",
         "message": msg,
         "first_build": first_build,
-        "timestamp_local": local_tag,
-        "timestamp_remote": remote_tag,
+        "version_local": local_tag,
+        "version_remote": remote_tag,
     }
     return milestone, update_decision, False, remote_tag
 
@@ -465,7 +465,7 @@ def main(
         return
 
     # 3) UPDATE_STATUS
-    upd_milestone, update_decision, update_required, remote_ts = _determine_update_status(
+    upd_milestone, update_decision, update_required, remote_tag = _determine_update_status(
         output_dir=out_dir,
         logger=logger,
         baseline_filename="current_release_tag.txt",
@@ -488,7 +488,7 @@ def main(
         return
 
     # 4) REMOTE_FILES_DOWNLOAD_STATUS
-    dl = _download_phiercc_files(output_dir=out_dir, targets=targets, release_tag=remote_ts, logger=logger, max_retries=3, wait_seconds=30)
+    dl = _download_phiercc_files(output_dir=out_dir, targets=targets, release_tag=remote_tag, logger=logger, max_retries=3, wait_seconds=30)
     rb.add_named_milestone("REMOTE_FILES_DOWNLOAD_STATUS", dl)
     remaining_steps.remove("REMOTE_FILES_DOWNLOAD_STATUS")
     if dl["status"] != StatusType.PASSED.value:
@@ -514,7 +514,7 @@ def main(
 
     # Persist baseline only after success
     try:
-        _persist_release_baseline(output_dir=out_dir, release_tag=remote_ts)
+        _persist_release_baseline(output_dir=out_dir, release_tag=remote_tag)
     except Exception as e:
         logger.warning("Failed to persist release tag baseline: %s", e)
 
