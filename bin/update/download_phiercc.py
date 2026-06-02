@@ -1,4 +1,58 @@
 #!/usr/bin/env python3
+"""
+Download pre-computed pHierCC clustering data from the plepiseq-cluster GitHub Releases.
+
+For each supported genus this script fetches the two single-linkage and two
+complete-linkage HierCC artefacts produced by ``plepiseq-cluster`` so that the
+runtime ``phiercc_local.py`` lookup has up-to-date data to seek into::
+
+    profile_single_linkage.HierCC.gz    (+ .index)
+    profile_complete_linkage.HierCC.gz  (+ .index)
+
+Source layout
+-------------
+Data ships as **assets attached to a GitHub Release** of
+``BioinfoPZH/plepiseq-cluster``. Release assets are flat (no folders inside
+the release), so the genus is encoded in the asset filename::
+
+    Salmonella_profile_single_linkage.HierCC.gz
+    Salmonella_profile_single_linkage.HierCC.index
+    Salmonella_profile_complete_linkage.HierCC.gz
+    Salmonella_profile_complete_linkage.HierCC.index
+    Escherichia_profile_single_linkage.HierCC.gz
+    ...
+
+Each asset is fetched from::
+
+    https://github.com/BioinfoPZH/plepiseq-cluster/releases/download/{tag}/{Genus}_{filename}
+
+and reshaped on disk into the per-genus layout the rest of the pipeline
+expects (``GENUS_CONFIG``), e.g. ``Campylobacter`` -> ``Campylobacter/jejuni/``.
+
+Update logic
+------------
+The latest release ``tag_name`` is read from
+``https://api.github.com/repos/BioinfoPZH/plepiseq-cluster/releases/latest``
+and compared against the tag persisted locally in
+``output_dir/current_release_tag.txt`` (the "baseline"). The download step
+runs only when the remote tag differs from the baseline (or no baseline
+exists yet, i.e. first build). On success the new tag overwrites the
+baseline and is also archived under ``output_dir/release_history/``.
+
+Atomicity
+---------
+Each existing target file is renamed to ``<name>.old`` before the new asset
+is fetched. If any download in the batch fails, all backups are restored
+and the run is marked FAIL; on full success the backups are removed.
+
+Reporting
+---------
+Standard ``ReportBuilder`` milestones are emitted in order:
+PREFLIGHT_CONNECTIVITY -> DATABASE_AVAILABILITY (GitHub API endpoint) ->
+UPDATE_STATUS (tag comparison) -> REMOTE_FILES_DOWNLOAD_STATUS ->
+PROCESSING_STATUS (no-op for this database) -> FINAL_STATUS (verifies all
+expected per-genus files are present on disk).
+"""
 
 from __future__ import annotations
 
