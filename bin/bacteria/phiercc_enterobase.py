@@ -133,8 +133,13 @@ def read_sample_st(path):
 
 
 def build_authenticated_request(url, token):
-    """Build an Enterobase ``urllib`` request carrying the Basic auth header."""
-    encoded = base64.b64encode(f"{token}: ".encode("utf-8")).decode()
+    """Build an Enterobase ``urllib`` request carrying the Basic auth header.
+
+    The credential is encoded as ``base64(token + ":")`` per RFC 7617
+    (token-as-username + empty password). Enterobase also accepts a trailing
+    whitespace after the colon, but the canonical form is preferred.
+    """
+    encoded = base64.b64encode(f"{token}:".encode("utf-8")).decode()
     headers = {"Authorization": f"Basic {encoded}"}
     return urllib.request.Request(url, None, headers)
 
