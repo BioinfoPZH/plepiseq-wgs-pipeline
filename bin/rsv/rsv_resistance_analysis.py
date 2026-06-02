@@ -10,7 +10,10 @@ reference (data/rsv/fusion_protein/{A,B}/F.fasta).
 
 Outputs a JSON file compliant with the rsv_data resistance sub-schema.
 
-Source for resistance data: virusfrenchresistance.org V3 (November 2025)
+Source for resistance data: 
+EQA 2026 materials
+https://virusfrenchresistance.org/wp-content/uploads/2026/01/Resistance-RSV-A-V3.pdf
+https://virusfrenchresistance.org/wp-content/uploads/2026/01/Resistance-RSV-B-V3.pdf
 """
 
 import argparse
