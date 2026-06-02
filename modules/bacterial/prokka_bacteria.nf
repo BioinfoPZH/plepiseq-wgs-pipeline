@@ -57,8 +57,7 @@ process run_prokka {
       mv prokka_out/prokka_out.gff ${x}_prokka.gff
       mv prokka_out/prokka_out.ffn ${x}_prokka.ffn
     else
-      mkdir prokka_out; touch prokka_out/prokka_out_dummy.gff prokka_out/prokka_out_dummy.ffa prokka_out/prokka_out_dummy.ffn prokka_out/prokka_out_dummy.tsv
-      # json z informacja o zlym gatunku
+      mkdir prokka_out; touch prokka_out/prokka_out_dummy.gff prokka_out/prokka_out_dummy.faa prokka_out/prokka_out_dummy.ffn prokka_out/prokka_out_dummy.tsv      # json z informacja o zlym gatunku
       
       if [ "${params.lan}" == "pl" ]; then
         ERROR_MSG=`echo Ten program jest przeznaczony do analizy bakterii z rodzajów: Salmonella, Escherichia oraz Campylobacter. W tej próbce wykryto: ${GENUS}`
