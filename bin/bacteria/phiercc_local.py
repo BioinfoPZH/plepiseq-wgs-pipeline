@@ -24,18 +24,27 @@ Inputs (CLI):
 Index protocol (as emitted by ``plepiseq-cluster``)::
 
     #ST_id            0             # comment header, skipped by the reader
-    1                 47            # numeric section: sparse checkpoints every 10k rows
-    10001             4213052
+    10000             87679564      # numeric section: sparse checkpoints every ~10k rows
+    20000             181066372     # (the value column is the ST id of the row, not the
+    ...                             # row index; STs may skip numbers, so e.g. line 16
+    160001            1473050487    # of the index can carry ST 160001 instead of 160000)
+    170002            1564947799
     ...
-    500001            211284770     # last numeric checkpoint
-    __LOCAL_START__   211520933     # always-present sentinel, offset of first local_* row
-    local_1           211520933     # local section: dense, one entry per local_* ST
-    local_2           211521020
+    700091            6547447188    # last numeric checkpoint
+    __LOCAL_START__   6634301115    # always-present sentinel, offset of first local_* row
+    local_1           6634301115    # local section: dense, one entry per local_* ST
+    local_2           6634301202
     ...
-    local_9871        212408262
+    local_9871        7522188262
 
 Pure-numeric profiles still emit the sentinel, at EOF, so the reader never
 has to branch on "does this profile have locals?".
+
+The first numeric checkpoint is therefore **not** ST 1 - the rows for STs
+below the first checkpoint (e.g. ST 3005 when the first checkpoint is
+ST 10000) live at the very start of the gz and must be reached by scanning
+from offset 0. The scanner already skips the ``#ST_id`` header line via the
+``row[0] == matching_st`` guard, so seeking to 0 is safe.
 
 Output contract:
     The only hard consumer is ``run_cgMLST_final_json`` in
@@ -239,9 +248,16 @@ def find_offset(matching_st, numeric_checkpoints, local_dense, local_section_off
 
     - ``local_*`` label -> ``local_dense.get(...)`` (O(1)).
     - Numeric label -> walk the sparse numeric checkpoints and return the
-      largest offset whose ST is ``<= matching_st``.
+      largest offset whose ST is ``<= matching_st``. If ``matching_st`` is
+      smaller than every numeric checkpoint, the row still lives at the
+      very start of the gz (before the first checkpoint) and we return
+      ``0`` so the scanner reads from the beginning. The scanner's
+      ``row[0] == matching_st`` check naturally skips the ``#ST_id``
+      header line.
 
-    Returns ``None`` if the target cannot be located (DB drift).
+    Returns ``None`` only when the target genuinely cannot be located
+    (non-integer numeric label, or numeric section completely empty -
+    both indicate DB drift).
     """
     if matching_st.startswith(LOCAL_PREFIX):
         return local_dense.get(matching_st)
@@ -251,11 +267,17 @@ def find_offset(matching_st, numeric_checkpoints, local_dense, local_section_off
     except ValueError:
         return None
 
+    if not numeric_checkpoints:
+        return None
+
     pointer: Optional[int] = None
     for st, offset in numeric_checkpoints:
         if target < st:
             break
         pointer = offset
+    if pointer is None:
+        # target sits below the first checkpoint - scan from start of gz
+        pointer = 0
     return pointer
 
 
