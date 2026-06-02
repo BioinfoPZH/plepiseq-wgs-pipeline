@@ -232,12 +232,24 @@ def align_two_proteins(ref_id, ref_seq, sample_id, sample_seq):
 def detect_mutations_from_alignment(aligned_ref, aligned_sample):
     """Compare aligned sample to aligned reference.
 
-    Returns two dicts mapping (ref_aa, alt) -> mutation string:
-      - ref_numbered: mutations in reference F.fasta numbering (e.g. K68E)
-      - sample_numbered: same mutations in sample numbering (accounting for indels)
-    Also returns the ref_numbered mutations as a plain set for resistance lookup.
+    Walks the pairwise mafft alignment while maintaining two independent,
+    1-indexed counters:
+      - ``ref_pos`` advances only on non-gap reference columns; it is the
+        residue index in the reference F protein and is what
+        ``RESISTANCE_DB`` positions are written against.
+      - ``sample_pos`` advances only on non-gap sample columns; it is the
+        residue index in the sample F protein (so it can differ from
+        ``ref_pos`` whenever the sample has an indel upstream).
+
+    Returns ``(ref_mutations_set, sample_numbered)``:
+      - ``ref_mutations_set``: set of mutation strings in reference
+        numbering (e.g. ``K68E``, or ``K68-`` for a deletion). This is the
+        only collection consumed by ``check_resistance`` - matching against
+        ``RESISTANCE_DB`` is a pure apples-to-apples set-membership test.
+      - ``sample_numbered``: dict mapping each ref-numbered mutation to its
+        sample-numbered form (e.g. ``"K68E" -> "K71E"`` if the sample has a
+        3-aa insertion upstream of residue 68). Consumed only for display.
     """
-    ref_numbered = {}
     sample_numbered = {}
     ref_mutations_set = set()
     ref_pos = 0
@@ -262,10 +274,9 @@ def detect_mutations_from_alignment(aligned_ref, aligned_sample):
             ref_mut = f'{ref_aa}{ref_pos}{sample_aa}'
             sample_mut = f'{ref_aa}{sample_pos}{sample_aa}'
             ref_mutations_set.add(ref_mut)
-            ref_numbered[ref_mut] = ref_mut
             sample_numbered[ref_mut] = sample_mut
 
-    return ref_mutations_set, ref_numbered, sample_numbered
+    return ref_mutations_set, sample_numbered
 
 
 # ── JSON output construction ─────────────────────────────────────────────────
@@ -427,7 +438,7 @@ def main():
                   ensure_ascii=False, indent=2)
         return
 
-    ref_mutations_set, ref_numbered, sample_numbered = \
+    ref_mutations_set, sample_numbered = \
         detect_mutations_from_alignment(aligned_ref, aligned_sample)
 
     # Step 3: Build output using alignment-derived mutations only
