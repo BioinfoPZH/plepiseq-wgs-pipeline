@@ -39,7 +39,7 @@ process run_initial_mlst_illumina {
     elif [ ${GENUS} == "Campylobacter" ]; then
       # w tej bazie podgatunki campylo okreslane sa typowo z cjejuni, clari itd .. 
       python /opt/docker/mlst/mlst.py -i ${read_1} ${read_2} -s c${SPECIES} -p /db/mlst_db/ -mp kma -t tmp/
-    elif [ ${GENUS} == "Legionella" ] && [ -f /db/mlst_db/legionella.fsa ]; then
+    elif [ ${GENUS} == "Legionella" ] && [ -f /db/mlst_db/legionella/legionella.fsa ]; then
       # Legionella obslugujemy tylko gdy baza MLST jest dostepna
       # w przeciwnym wypadku probka trafia do galezi "else" i traktowana jest jak gatunek nieobslugiwany
       python /opt/docker/mlst/mlst.py -i ${read_1} ${read_2} -s legionella -p /db/mlst_db/ -mp kma -t tmp/
@@ -103,7 +103,7 @@ process run_initial_mlst_nanopore {
     elif [ ${GENUS} == "Campylobacter" ]; then
     # w tej bazie podgatunki campylo okreslane sa typowo z cjejuni, clari itd ..
     python /opt/docker/mlst/mlst.py -i ${reads} -s c${SPECIES} -p /db/mlst_db/ -mp kma -t tmp/
-    elif [ ${GENUS} == "Legionella" ] && [ -f /db/mlst_db/legionella.fsa ]; then
+    elif [ ${GENUS} == "Legionella" ] && [ -f /db/mlst_db/legionella/legionella.fsa ]; then
     # Legionella obslugujemy tylko gdy baza MLST jest dostepna
     # w przeciwnym wypadku probka trafia do galezi "else" i traktowana jest jak gatunek nieobslugiwany
     python /opt/docker/mlst/mlst.py -i ${reads} -s legionella -p /db/mlst_db/ -mp kma -t tmp/
