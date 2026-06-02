@@ -312,7 +312,6 @@ def scan_hiercc_row(gz_path, start_offset, matching_st, stop_offset=None):
             row = raw.decode("utf-8", errors="replace").split()
             if row and row[0] == matching_st:
                 return row
-    return None
 
 
 def extract_levels(row, columns):
