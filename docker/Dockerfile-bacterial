@@ -1,6 +1,10 @@
 ARG PIP_TIMEOUT=30
 ARG PIP_INDEX_URL=https://pypi.org/simple
 ARG PIP_TRUSTED_HOST
+# Liczba watkow uzywana przez "make -j" / "spades_compile.sh -j" we wszystkich
+# regulach RUN. Override przy buildzie: docker build --build-arg NPROC=8 ...
+# Uwaga: Prodigal i Flye sa celowo budowane szeregowo (patrz komentarze nizej).
+ARG NPROC=20
 
 FROM nvidia/cuda:12.1.0-cudnn8-runtime-ubuntu22.04
 LABEL maintainer="Michal Lazniewski <mlazniewski@pzh.gov.pl>"
@@ -8,6 +12,7 @@ LABEL maintainer="Michal Lazniewski <mlazniewski@pzh.gov.pl>"
 ARG PIP_TIMEOUT
 ARG PIP_INDEX_URL
 ARG PIP_TRUSTED_HOST
+ARG NPROC
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
@@ -59,7 +64,7 @@ WORKDIR /opt/docker/
 RUN git clone https://github.com/ablab/spades.git ;\
     cd /opt/docker/spades; \
     git reset --hard 874c54b; \
-    ./spades_compile.sh -j 20;\
+    ./spades_compile.sh -j ${NPROC};\
     rm -r build_spades; \
     ln -sfn /opt/docker/spades/bin/spades.py /opt/docker/EToKi/externals/spades.py ;\
     cd /opt/docker
@@ -171,7 +176,7 @@ WORKDIR /opt/docker
 RUN cd /opt/docker ;\
     wget http://eddylab.org/software/hmmer/hmmer-3.3.2.tar.gz; tar -zxf hmmer-3.3.2.tar.gz ;\
     cd /opt/docker/hmmer-3.3.2 ;\
-    ./configure; make -j 20; make install ;\
+    ./configure; make -j ${NPROC}; make install ;\
     cd /opt/docker 
  
 ## AMRFIDER
@@ -180,7 +185,7 @@ RUN git clone https://github.com/ncbi/amr.git ;\
     git reset --hard 81f509d ;\
     git checkout stxtype ;\
     git submodule update --init ;\
-    make -j 20; make install ;\
+    make -j ${NPROC}; make install ;\
     cd /opt/docker
 
 # ECTyper
