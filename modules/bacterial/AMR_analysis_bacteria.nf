@@ -43,8 +43,15 @@ process run_amrfinder {
       cat initial_output.txt  | awk 'BEGIN{FS="\\t"}; {if(\$9 == "AMR" || \$1 == "Protein identifier") print \$0}' > AMRfinder_resistance.txt
       cat initial_output.txt  | awk 'BEGIN{FS="\\t"}; {if(\$9 == "VIRULENCE" || \$1 == "Protein identifier") print \$0}' > AMRfinder_virulence.txt
       python /opt/docker/EToKi/externals/amrfinder_parser.py -i AMRfinder_resistance.txt -s "tak" -o amrfinder.json
+    elif [ ${GENUS} == "Legionella" ]
+       # AMRFINDER PLUS does not support Legionella, but we can run it without -O option and analyze presence of genes responsible for resistance
+       # Mutation list will be always empty
+       amrfinder --blast_bin /blast/bin -n $fasta -d /AMRfider  -i 0.9 -c 0.5 -o initial_output.txt --plus 
+       cat initial_output.txt  | awk 'BEGIN{FS="\\t"}; {if(\$9 == "AMR" || \$1 == "Protein identifier") print \$0}' > AMRfinder_resistance.txt
+       cat initial_output.txt  | awk 'BEGIN{FS="\\t"}; {if(\$9 == "VIRULENCE" || \$1 == "Protein identifier") print \$0}' > AMRfinder_virulence.txt
+       python /opt/docker/EToKi/externals/amrfinder_parser.py -i AMRfinder_resistance.txt -s "tak" -o amrfinder.json
     else
-      touch AMRfinder_resistance.txt
+      touch AMRfinder_resistance.txt  
       touch AMRfinder_virulence.txt
       if [ "${params.lan}" == "pl" ]; then
         ERR_MSG=`echo Ten modul jest przeznaczony do analizy bakterii z rodzajów: Salmonella, Escherichia oraz Campylobacter. W tej próbce wykryto: ${GENUS}`
