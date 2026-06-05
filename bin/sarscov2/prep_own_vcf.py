@@ -7,6 +7,7 @@ wygeneruje vcf-a
 
 import os
 import re
+import shutil
 import subprocess
 import sys
 from typing import Dict
@@ -101,10 +102,12 @@ def align_fasta_muscle(fasta1_file: str, *args, **kwargs) -> Dict:
         if not stan2:
             raise Exception('Podane dodatkowe pliki nie istnieja')
 
-    for plik in fasta1_file:
-        with open('tmp.fasta', 'a+') as f, open(plik, 'r') as f1:
-            for line in f1:
-                f.write(line)
+    # tmp.fasta is opened ONCE in 'w' mode so any stale file left behind by
+    # a previously crashed run is clobbered atomically before we append the
+    with open('tmp.fasta', 'w') as f:
+        for plik in fasta1_file:
+            with open(plik, 'r') as f1:
+                shutil.copyfileobj(f1, f)
 
     polecenie = ('muscle3 -quiet -in tmp.fasta -out tmp_aln.fasta')
 
