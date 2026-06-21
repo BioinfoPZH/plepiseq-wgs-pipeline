@@ -4,13 +4,20 @@ from utils.report import ReportBuilder, ALL_STEPS, SCHEMA_VERSION
 from utils.run_id import generate_run_id
 from utils.updates_helpers import file_md5sum
 from utils.setup_logging import _setup_logging
-from utils.generic_helpers import _dir_removal, _execute_command, get_timestamp
+from utils.generic_helpers import (
+    _execute_command,
+    get_timestamp,
+    backup_paths_to_dir,
+    restore_paths_from_dir,
+    remove_backup_dir,
+)
 from utils.validation import verify_expected_files
 from utils.blast_helpers import run_makeblastdb
 
 import getpass
 import socket
 import os
+import shutil
 import json
 from pathlib import Path
 from Bio import SeqIO
@@ -59,8 +66,20 @@ SOURCE = {
 
 
 def read_fasta(fasta_path):
-    """Parse FASTA file into dict {header: sequence}."""
-    return {f">{rec.description}": str(rec.seq) for rec in SeqIO.parse(fasta_path, "fasta")}
+    """Parse FASTA file into dict {header: sequence}.
+
+    VFDB ships FASTA headers that contain non-UTF-8 bytes (e.g. 0xA0, a non-breaking
+    space from latin-1/Windows encodings). Letting Bio.SeqIO open the file with the
+    default UTF-8 codec raises UnicodeDecodeError, so we open it explicitly as latin-1
+    (every byte 0x00-0xFF is decodable). Sequence data is ASCII; any stray non-breaking
+    spaces in the descriptions are normalized to regular spaces so the downstream header
+    regex and whitespace handling behave consistently.
+    """
+    with open(fasta_path, "r", encoding="latin-1") as handle:
+        return {
+            f">{rec.description}".replace("\xa0", " "): str(rec.seq)
+            for rec in SeqIO.parse(handle, "fasta")
+        }
 
 
 def extract_info_from_header(header, bis=0):
@@ -196,10 +215,15 @@ def determine_update_status_checksum_manifest(
     expected_raw_files: List[str],
     logger: logging.Logger,
     md5_filename: str = "vfdb_md5.json",
-    keep_dirs: Tuple[str, ...] = ("logs",'reports',),
 ) -> Tuple[Dict[str, Any], Dict[str, Any], bool, Dict[str, str]]:
     """
     Compare MD5 checksums for expected raw files with previously stored manifest.
+
+    This function is side-effect free with respect to the output tree: it neither wipes
+    existing data nor writes the manifest. The caller is responsible for backing up the
+    existing output, processing, and only persisting the new manifest (returned as
+    new_md5) after the final validation passes.
+
     Returns:
       milestone_dict,
       update_decision_kwargs (for ReportBuilder.set_update_decision),
@@ -241,11 +265,9 @@ def determine_update_status_checksum_manifest(
         msg = "Update required: checksum change detected." if md5_path.exists() else "No previous manifest: treating as first build."
         logger.info("%s Changed files: %s", msg, ", ".join(changed_files) if changed_files else "(baseline)")
 
-        # WE clean up all the subdirecotirs that hold processed files (we only keep log subdirectory, and file in the output dir)
-
-        _dir_removal(directory=output_dir,
-                    keep_dirs=keep_dirs,
-                    logger=logger)
+        # NOTE: the existing output is intentionally NOT wiped here. The caller backs it
+        # up first and only removes the old data after a successful run. Likewise, the new
+        # manifest is NOT written here; it is persisted only after FINAL_STATUS passes.
 
         milestone = {
             "status": StatusType.PASSED.value,
@@ -261,11 +283,6 @@ def determine_update_status_checksum_manifest(
                 "changed_files": changed_files,
             },
         }
-
-        # Save the md5sums for future reference
-        with open(md5_path, "w", encoding="utf-8") as f:
-            json.dump(new_md5, f, indent=2)
-
 
         update_decision = {
             "mode": "checksum_manifest",
@@ -603,12 +620,11 @@ def main(workspace: str,
     # -----------------------------
     STEP = "UPDATE_STATUS"
 
-    milestone, update_decision, update_required, _new_md5 = determine_update_status_checksum_manifest(
+    milestone, update_decision, update_required, new_md5 = determine_update_status_checksum_manifest(
         output_dir=output_dir,
         expected_raw_files=SOURCE["expected_raw_files"],
         logger=logger,
         md5_filename="vfdb_md5.json",
-        keep_dirs=("logs", "reports"),
     )
 
     rb.add_named_milestone(STEP, milestone)
@@ -630,20 +646,59 @@ def main(workspace: str,
         return
 
     # ---------------------------------------------------------
+    # Back up existing processed output so we can roll back on any later failure.
+    # We move aside all processed subdirectories (everything except logs/reports) and the
+    # previous checksum manifest; the freshly downloaded raw *.gz files stay in place so
+    # processing can use them.
+    # ---------------------------------------------------------
+    md5_path = output_dir / "vfdb_md5.json"
+    backup_dir = output_dir / f".backup_vfdb_{run_id}"
+    keep_names = {"logs", "reports", backup_dir.name}
+    remove_backup_dir(backup_dir, logger)  # clear any stale backup from a previous aborted run
+
+    to_backup = [p for p in output_dir.iterdir() if p.is_dir() and p.name not in keep_names]
+    if md5_path.exists():
+        to_backup.append(md5_path)
+    backups = backup_paths_to_dir(to_backup, backup_dir, logger)
+
+    def rollback_to_backup() -> None:
+        """Remove freshly created processed output, then restore the backed-up version."""
+        for p in list(output_dir.iterdir()):
+            if p.is_dir() and p.name not in keep_names:
+                shutil.rmtree(p, ignore_errors=True)
+        restore_paths_from_dir(backups, logger)
+        remove_backup_dir(backup_dir, logger)
+
+    # ---------------------------------------------------------
     # Process files
     # ---------------------------------------------------------
 
     STEP = "PROCESSING_STATUS"
-    proc = process_vfdb(
-        output_dir=output_dir,
-        expected_raw_files=SOURCE["expected_raw_files"],
-        logger=logger,
-        cpus=cpus,
-    )
+    try:
+        proc = process_vfdb(
+            output_dir=output_dir,
+            expected_raw_files=SOURCE["expected_raw_files"],
+            logger=logger,
+            cpus=cpus,
+        )
+    except Exception as e:
+        # Never let an unexpected processing error escape without a report: convert it
+        # into a FAILED milestone so the JSON report is still written for diagnostics.
+        logger.exception("Unexpected error during VFDB processing")
+        proc = {
+            "status": StatusType.FAILED.value,
+            "message": f"Unexpected error during processing: {e}",
+            "started_at": get_timestamp(),
+            "finished_at": get_timestamp(),
+            "attempts": 1,
+            "retryable": False,
+            "metrics": {},
+        }
     rb.add_named_milestone(STEP, proc)
     ALL_STEPS.remove(STEP)
 
     if proc["status"] != StatusType.PASSED.value:
+        rollback_to_backup()
         skip_remaining_steps(ALL_STEPS, "Skipped: processing failed.")
         rb.fail(code="PROCESSING_FAILED", message=proc["message"], retry_recommended=False)
         rb.finalize("FAIL")
@@ -663,10 +718,20 @@ def main(workspace: str,
     ALL_STEPS.remove(STEP)
 
     if final["status"] != StatusType.PASSED.value:
+        rollback_to_backup()
         rb.fail(code="FINAL_STATUS_FAILED", message=final["message"], retry_recommended=False)
         rb.finalize("FAIL")
         rb.write(str(report_dir / report_file))
         return
+
+    # Success: persist the new checksum manifest (now that processing + final check passed)
+    # and drop the backup of the previous version.
+    try:
+        with open(md5_path, "w", encoding="utf-8") as f:
+            json.dump(new_md5, f, indent=2)
+    except Exception as e:
+        logger.warning("Failed to write checksum manifest %s: %s", md5_path, e)
+    remove_backup_dir(backup_dir, logger)
 
     rb.finalize("PASS")
     rb.write(str(report_dir / report_file))
