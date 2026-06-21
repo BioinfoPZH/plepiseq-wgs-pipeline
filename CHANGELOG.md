@@ -1,6 +1,11 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.7.1] - 2026-06-21
+### Fixed
+- Fixed the Freyja database download after upstream replaced the LFS `usher_barcodes.csv` with a gzipped `usher_barcodes.csv.gz`; the client now fetches and decompresses it, staging downloads and restoring the previous database if a run fails.
+- Fixed a VFDB crash on non-UTF-8 FASTA headers and hardened the run so a JSON report is always written, the output is backed up/restored on failure, and the checksum manifest is saved only after the final check passes.
+
 ## [1.7.0] - 2026-03-02
 ### Added
 - Introduced `run_pipeline.sh` -- a unified dispatcher that routes to the correct sub-wrapper (viral or bacterial) based on `--organism`, providing a single entry point for both pipelines.

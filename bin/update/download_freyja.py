@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import getpass
+import gzip
+import os
+import shutil
 import socket
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -10,7 +13,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import click
 
 from utils.download_helpers import _download_file_with_retry
-from utils.generic_helpers import remove_old_workspace
+from utils.generic_helpers import backup_paths, remove_backup_files, restore_backups
 from utils.github_helpers import build_version_string, get_github_head_sha
 from utils.net import StatusType, check_url_available
 from utils.report import ALL_STEPS, SCHEMA_VERSION, ReportBuilder
@@ -27,10 +30,11 @@ SOURCE = {
     "reference": "https://github.com/andersen-lab/Freyja-data",
     # expected_raw_files: only used to populate the JSON report metadata;
     # not validated against the filesystem. Schema requires minItems=1.
+    # usher_barcodes is fetched as a gzipped artifact and decompressed during PROCESSING.
     "expected_raw_files": [
         "sarscov2/lineages.yml",
         "sarscov2/curated_lineages.json",
-        "sarscov2/usher_barcodes.csv",
+        "sarscov2/usher_barcodes.csv.gz",
         "H1N1/barcode.csv",
         "FLU-B-VIC/barcode.csv",
     ],
@@ -63,8 +67,28 @@ SOURCE = {
 
 
 FREYJA_DATA_RAW_BASE = "https://raw.githubusercontent.com/andersen-lab/Freyja-data/main"
-FREYJA_DATA_LFS_BASE = "https://media.githubusercontent.com/media/andersen-lab/Freyja-data/main"
 FREYJA_BARCODES_RAW_BASE = "https://raw.githubusercontent.com/andersen-lab/Freyja-barcodes/main"
+
+# Upstream artifact name for the SARS-CoV-2 UShER barcodes. The repo used to ship a
+# Git-LFS-tracked "usher_barcodes.csv" (fetched via media.githubusercontent.com); it now
+# ships a plain gzipped "usher_barcodes.csv.gz" committed directly (served from raw.*).
+USHER_BARCODES_GZ = "usher_barcodes.csv.gz"
+USHER_BARCODES_CSV = "usher_barcodes.csv"
+
+
+def _gunzip_file(src: Path, dest: Path) -> None:
+    """Decompress a .gz file to dest (streaming, suitable for large files)."""
+    with gzip.open(src, "rb") as f_in, open(dest, "wb") as f_out:
+        shutil.copyfileobj(f_in, f_out)
+
+
+def _cleanup_staging(staging_dir: Path, logger) -> None:
+    """Best-effort removal of the temporary staging directory."""
+    if staging_dir.exists():
+        try:
+            shutil.rmtree(staging_dir, ignore_errors=True)
+        except Exception as e:  # pragma: no cover - defensive
+            logger.warning("Failed to clean staging dir %s: %s", staging_dir, e)
 
 
 def determine_update_status_from_github_commits(
@@ -128,8 +152,10 @@ def determine_update_status_from_github_commits(
     if update_required:
         msg = "Update required: remote GitHub commit differs from local baseline." if not first_build else "No local version baseline: treating as first build."
 
-        # In-place wipe behaviour (keep logs/reports/version manifest)
-        remove_old_workspace(output_dir, keep=("logs", "reports", "current_version.json"), logger=logger)
+        # NOTE: we intentionally do NOT wipe the existing workspace here. New files are
+        # downloaded into a temporary staging dir and only promoted into place after a
+        # successful download + processing, with the previous files backed up first.
+        # This keeps the last good database intact if an upstream change breaks a download.
 
         milestone = {
             "status": StatusType.PASSED.value,
@@ -189,7 +215,8 @@ def determine_update_status_from_github_commits(
     return milestone, update_decision, False, remote_versions
 
 
-def download_freyja_files(output_dir: Path, logger) -> Dict[str, Any]:
+def download_freyja_files(staging_dir: Path, logger) -> Dict[str, Any]:
+    """Download all Freyja raw files into a temporary staging directory."""
     started_at = get_timestamp()
 
     # Map of remote dir -> local dir for Flu/RSV
@@ -204,22 +231,22 @@ def download_freyja_files(output_dir: Path, logger) -> Dict[str, Any]:
 
     files: List[Tuple[str, Path]] = []
 
-    # SARS-CoV-2 files from Freyja-data
-    # usher_barcodes.csv is stored in Git LFS; raw.githubusercontent.com returns
-    # the LFS pointer, so we fetch it via media.githubusercontent.com instead.
-    sars_dir = output_dir / "sarscov2"
+    # SARS-CoV-2 files from Freyja-data. usher_barcodes is shipped as a plain (non-LFS)
+    # gzipped file committed to the repo, so it is fetched from raw.githubusercontent.com
+    # and decompressed later in PROCESSING_STATUS.
+    sars_dir = staging_dir / "sarscov2"
     files.extend(
         [
             (f"{FREYJA_DATA_RAW_BASE}/lineages.yml", sars_dir / "lineages.yml"),
             (f"{FREYJA_DATA_RAW_BASE}/curated_lineages.json", sars_dir / "curated_lineages.json"),
-            (f"{FREYJA_DATA_LFS_BASE}/usher_barcodes.csv", sars_dir / "usher_barcodes.csv"),
+            (f"{FREYJA_DATA_RAW_BASE}/{USHER_BARCODES_GZ}", sars_dir / USHER_BARCODES_GZ),
         ]
     )
 
     # Barcode sets from Freyja-barcodes
     for remote_species, local_species in species_map.items():
         base = f"{FREYJA_BARCODES_RAW_BASE}/{remote_species}/latest"
-        local_dir = output_dir / local_species
+        local_dir = staging_dir / local_species
         files.extend(
             [
                 (f"{base}/barcode.csv", local_dir / "barcode.csv"),
@@ -269,18 +296,80 @@ def download_freyja_files(output_dir: Path, logger) -> Dict[str, Any]:
     }
 
 
-def processing_status_dummy() -> Dict[str, Any]:
+def process_and_promote_freyja_files(
+    *,
+    staging_dir: Path,
+    out_dir: Path,
+    expected_files: List[str],
+    logger,
+) -> Tuple[Dict[str, Any], List[Tuple[Path, Path]]]:
+    """
+    Post-download processing for Freyja.
+
+    Steps:
+      1. Decompress the gzipped UShER barcodes into the staging dir.
+      2. Verify the staged set contains every expected processed file.
+      3. Back up the existing live files and promote the staged files into out_dir.
+
+    On any error the live files are restored from their backups so the previous good
+    database is preserved. Returns (milestone, backups). The caller keeps the backups to
+    either remove them after FINAL_STATUS passes or restore them if it fails.
+    """
     started_at = get_timestamp()
+    backups: List[Tuple[Path, Path]] = []
+
+    try:
+        # 1) Decompress usher_barcodes.csv.gz -> usher_barcodes.csv (in staging)
+        gz_path = staging_dir / "sarscov2" / USHER_BARCODES_GZ
+        csv_path = staging_dir / "sarscov2" / USHER_BARCODES_CSV
+        if not gz_path.exists():
+            raise FileNotFoundError(f"Expected gzipped barcodes not found: {gz_path}")
+        logger.info("Decompressing %s -> %s", gz_path.name, csv_path.name)
+        _gunzip_file(gz_path, csv_path)
+        gz_path.unlink(missing_ok=True)
+
+        # 2) Verify the staged set is complete before touching the live data
+        staged_check = verify_expected_files(base_dir=staging_dir, expected_files=expected_files)
+        if staged_check["status"] != StatusType.PASSED.value:
+            raise RuntimeError(f"Staged files incomplete: {staged_check.get('message', '')}")
+
+        # 3) Back up existing live files, then promote staged files into place
+        targets = [out_dir / rel for rel in expected_files]
+        backups = backup_paths(targets, logger)
+        for rel in expected_files:
+            src = staging_dir / rel
+            dest = out_dir / rel
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            os.replace(src, dest)
+    except Exception as e:
+        restore_backups(backups, logger)
+        finished_at = get_timestamp()
+        return (
+            {
+                "status": StatusType.FAILED.value,
+                "message": f"Failed to process/promote Freyja files (restored backups): {e}",
+                "started_at": started_at,
+                "finished_at": finished_at,
+                "attempts": 1,
+                "retryable": False,
+                "metrics": {"staging_dir": str(staging_dir), "backup_count": len(backups)},
+            },
+            backups,
+        )
+
     finished_at = get_timestamp()
-    return {
-        "status": StatusType.SKIPPED.value,
-        "message": "No additional processing required for Freyja (download-only).",
-        "started_at": started_at,
-        "finished_at": finished_at,
-        "attempts": 1,
-        "retryable": False,
-        "metrics": {},
-    }
+    return (
+        {
+            "status": StatusType.PASSED.value,
+            "message": "Decompressed barcodes and promoted Freyja files into place.",
+            "started_at": started_at,
+            "finished_at": finished_at,
+            "attempts": 1,
+            "retryable": False,
+            "metrics": {"files_promoted": len(expected_files), "backup_count": len(backups)},
+        },
+        backups,
+    )
 
 
 @click.command()
@@ -361,6 +450,7 @@ def main(
     urls_to_check = [
         "https://api.github.com/",
         f"{FREYJA_DATA_RAW_BASE}/lineages.yml",
+        f"{FREYJA_DATA_RAW_BASE}/{USHER_BARCODES_GZ}",
         f"{FREYJA_BARCODES_RAW_BASE}/H1N1/latest/barcode.csv",
     ]
     avail = composite_availability_check(urls_to_check, logger, retries=3, interval=10)
@@ -396,25 +486,47 @@ def main(
         return
 
     # 4) REMOTE_FILES_DOWNLOAD_STATUS
-    dl = download_freyja_files(out_dir, logger)
+    # Download into an isolated staging directory; the live workspace is left untouched
+    # until processing succeeds and the new files are promoted into place.
+    staging_dir = out_dir / f".tmp_freyja_{run_id}"
+    _cleanup_staging(staging_dir, logger)
+    staging_dir.mkdir(parents=True, exist_ok=True)
+
+    dl = download_freyja_files(staging_dir, logger)
     rb.add_named_milestone("REMOTE_FILES_DOWNLOAD_STATUS", dl)
     remaining_steps.remove("REMOTE_FILES_DOWNLOAD_STATUS")
     if dl["status"] != StatusType.PASSED.value:
+        _cleanup_staging(staging_dir, logger)
         skip_remaining_steps(remaining_steps, "Skipped: failed to download raw files.")
+        rb.fail(code="REMOTE_FILES_DOWNLOAD_FAILED", message=dl.get("message", ""), retry_recommended=True)
         rb.finalize("FAIL")
         rb.write(str(report_dir / report_file))
         return
 
-    # 5) PROCESSING_STATUS
-    proc = processing_status_dummy()
+    # 5) PROCESSING_STATUS (decompress barcodes, back up existing files, promote staged files)
+    expected = list(SOURCE["expected_processed_files"])
+    proc, backups = process_and_promote_freyja_files(
+        staging_dir=staging_dir,
+        out_dir=out_dir,
+        expected_files=expected,
+        logger=logger,
+    )
+    _cleanup_staging(staging_dir, logger)
     rb.add_named_milestone("PROCESSING_STATUS", proc)
     remaining_steps.remove("PROCESSING_STATUS")
+    if proc["status"] != StatusType.PASSED.value:
+        skip_remaining_steps(remaining_steps, "Skipped: processing failed.")
+        rb.fail(code="PROCESSING_FAILED", message=proc.get("message", ""), retry_recommended=False)
+        rb.finalize("FAIL")
+        rb.write(str(report_dir / report_file))
+        return
 
     # 6) FINAL_STATUS
-    final = verify_expected_files(base_dir=out_dir, expected_files=SOURCE["expected_processed_files"])
+    final = verify_expected_files(base_dir=out_dir, expected_files=expected)
     rb.add_named_milestone("FINAL_STATUS", final)
     remaining_steps.remove("FINAL_STATUS")
     if final["status"] != StatusType.PASSED.value:
+        restore_backups(backups, logger)
         rb.fail(code="FINAL_STATUS_FAILED", message=final.get("message", ""), retry_recommended=False)
         rb.finalize("FAIL")
         rb.write(str(report_dir / report_file))
@@ -425,6 +537,9 @@ def main(
         write_version_manifest(out_dir / "current_version.json", remote_versions)
     except Exception as e:
         logger.warning("Failed to write version manifest: %s", e)
+
+    # Update succeeded end-to-end: drop the *.old backups of the previous version.
+    remove_backup_files(backups, logger)
 
     rb.finalize("PASS")
     rb.write(str(report_dir / report_file))
