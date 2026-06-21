@@ -59,6 +59,60 @@ def restore_backups(backups: List[Tuple[Path, Path]], logger: logging.Logger) ->
             os.replace(bak, orig)
 
 
+def backup_paths_to_dir(paths: List[Path], backup_dir: Path, logger: logging.Logger) -> List[Tuple[Path, Path]]:
+    """Move each existing path (file or directory) into backup_dir, preserving its name.
+
+    Returns (original, backup) pairs so the originals can be restored later. Unlike
+    backup_paths() (which renames files to *.old in place), this handles directories and
+    collects everything under a single backup directory, which is convenient for an
+    all-or-nothing rollback of a whole output tree.
+    """
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    pairs: List[Tuple[Path, Path]] = []
+    for p in paths:
+        if not p.exists():
+            continue
+        dest = backup_dir / p.name
+        try:
+            if dest.exists():
+                if dest.is_dir():
+                    shutil.rmtree(dest, ignore_errors=True)
+                else:
+                    dest.unlink()
+        except Exception:
+            pass
+        logger.info("Backing up %s -> %s", p, dest)
+        os.replace(p, dest)
+        pairs.append((p, dest))
+    return pairs
+
+
+def restore_paths_from_dir(backups: List[Tuple[Path, Path]], logger: logging.Logger) -> None:
+    """Restore originals (files or directories) from a backup created by backup_paths_to_dir()."""
+    for orig, bak in backups:
+        try:
+            if orig.exists():
+                if orig.is_dir():
+                    shutil.rmtree(orig, ignore_errors=True)
+                else:
+                    orig.unlink()
+        except Exception:
+            pass
+        if bak.exists():
+            logger.info("Restoring backup: %s -> %s", bak, orig)
+            os.replace(bak, orig)
+
+
+def remove_backup_dir(backup_dir: Path, logger: logging.Logger) -> None:
+    """Remove the temporary backup directory (best-effort) after a successful update."""
+    if backup_dir.exists():
+        try:
+            logger.info("Removing backup directory: %s", backup_dir)
+            shutil.rmtree(backup_dir, ignore_errors=True)
+        except Exception as e:
+            logger.warning("Failed to remove backup dir %s: %s", backup_dir, e)
+
+
 def remove_backup_files(backups: List[Tuple[Path, Path]], logger: logging.Logger) -> None:
     """Remove *.old backup files after a successful update."""
     for _orig, bak in backups:
