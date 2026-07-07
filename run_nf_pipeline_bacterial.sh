@@ -27,6 +27,10 @@ profile="local"
 # Run alpfafold
 run_alphafold="true"
 
+# Debug mode: when enabled the pipeline is run with extra Nextflow reporting
+# (trace/dag/report) and -resume
+debug="false"
+
 # Parmaters related to resources available to the pipeline (max PER sample) if N samples are analyzed the pipeline will use at most N times more resuorces
 # For testing purpose can be change, but for production invariable
 threads=40
@@ -163,6 +167,8 @@ show_all_parameters() {
     echo "                                  Model uzywany to identyfikacji SNP/SVs w genomie proponowanym przez program pilon"
     echo "  --no-alphafold                  Skip calculations of 3D model with alphafold"
     echo "                                  Omin krok generowania modelu 3D z uzyciem programu alphafold"
+    echo "  --debug                         Run Nextflow with extra reporting (reports/trace.txt, reports/dag.png,"
+    echo "                                  reports/report.html) and -resume. Uruchom pipeline w trybie debug"
     echo "  --all                           Display this help meassage"
     echo "                                  Wyswietl liste wszystkich parametrow modelu"
     echo "  -h, --help                      Show this help message"
@@ -170,7 +176,7 @@ show_all_parameters() {
 
 
 # Parse command-line options using GNU getopt
-OPTS=$(getopt -o h --long projectDir:,profile:,external_databases_path:,results_dir:,main_image:,prokka_image:,medaka_image:,alphafold_image:,threads:,machine:,reads:,genus:,quality:,min_number_of_reads:,min_median_quality:,main_genus_value:,kmerfinder_coverage:,main_species_coverage:,min_genome_length:,unique_loci:,contig_number:,N50:,final_coverage:,min_coverage_ratio:,min_coverage_value:,model_medaka:,no-alphafold,all,help -- "$@")
+OPTS=$(getopt -o h --long projectDir:,profile:,external_databases_path:,results_dir:,main_image:,prokka_image:,medaka_image:,alphafold_image:,threads:,machine:,reads:,genus:,quality:,min_number_of_reads:,min_median_quality:,main_genus_value:,kmerfinder_coverage:,main_species_coverage:,min_genome_length:,unique_loci:,contig_number:,N50:,final_coverage:,min_coverage_ratio:,min_coverage_value:,model_medaka:,no-alphafold,debug,all,help -- "$@")
 
 eval set -- "$OPTS"
 
@@ -290,6 +296,10 @@ while true; do
       run_alphafold="false"
       shift 1
       ;;
+    --debug)
+      debug="true"
+      shift 1
+      ;;
     --all)
       show_all_parameters
       exit 0
@@ -369,6 +379,14 @@ fi
 # Tests for USER provided parameters 
 # TO DO
 
+# Build Nextflow reporting flags.
+if [[ "${debug}" == "true" ]]; then
+    mkdir -p reports
+    trace_args="-with-trace reports/trace.txt -with-dag reports/dag.png -with-report reports/report.html -resume"
+else
+    trace_args="-with-trace"
+fi
+
 echo "Running the bacterial pipeline..."
 nextflow run ${projectDir}/nf_pipeline_bacterial.nf \
 	     --projectDir ${projectDir} \
@@ -398,4 +416,4 @@ nextflow run ${projectDir}/nf_pipeline_bacterial.nf \
 	     --model_medaka ${model_medaka} \
 	     --run_alphafold ${run_alphafold} \
 	     -profile ${profile} \
-	     -with-trace
+	     ${trace_args}

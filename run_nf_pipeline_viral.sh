@@ -61,6 +61,10 @@ alphafold_image="plepiseq-wgs-pipeline-alphafold:latest"
 ## Nextflow executor
 profile="local"
 
+# Debug mode: when enabled the pipeline is run with extra Nextflow reporting
+# (trace/dag/report) and -resume
+debug="false"
+
 # Parmaters related to the resources available to the pipeline (max PER sample) 
 # if N samples are analyzed the pipeline will use at most N times threads
 # For testing purpose can be change, but for production invariable
@@ -214,12 +218,15 @@ show_all_parameters() {
     echo ""
     echo "  --no-alphafold                  Skip calculations of 3D model with alphafold"
     echo ""
+    echo "  --debug                         Run Nextflow with extra reporting (reports/trace.txt, reports/dag.png,"
+    echo "                                  reports/report.html) and -resume. Uruchom pipeline w trybie debug"
+    echo ""
 }
 
 
 
 # Parse arguments
-OPTIONS=$(getopt -o h --long machine:,profile:,reads:,primers_id:,species:,adapters_id:,threads:,projectDir:,external_databases_path:,main_image:,manta_image:,medaka_image:,alphafold_image:,max_number_for_SV:,variant:,min_number_of_reads:,expected_genus_value:,min_median_quality:,quality_initial:,length:,max_depth:,min_cov:,mask:,quality_snp:,pval:,lower_ambig:,upper_ambig:,window_size:,min_mapq:,quality_for_coverage:,freyja_minq:,bed_offset:,extra_bed_offset:,medaka_model:,medaka_chunk_len:,medaka_chunk_overlap:,first_round_pval:,second_round_pval:,results_dir:,min_median_for_SV:,no-alphafold,all,help -- "$@")
+OPTIONS=$(getopt -o h --long machine:,profile:,reads:,primers_id:,species:,adapters_id:,threads:,projectDir:,external_databases_path:,main_image:,manta_image:,medaka_image:,alphafold_image:,max_number_for_SV:,variant:,min_number_of_reads:,expected_genus_value:,min_median_quality:,quality_initial:,length:,max_depth:,min_cov:,mask:,quality_snp:,pval:,lower_ambig:,upper_ambig:,window_size:,min_mapq:,quality_for_coverage:,freyja_minq:,bed_offset:,extra_bed_offset:,medaka_model:,medaka_chunk_len:,medaka_chunk_overlap:,first_round_pval:,second_round_pval:,results_dir:,min_median_for_SV:,no-alphafold,debug,all,help -- "$@")
 
 eval set -- "$OPTIONS"
 
@@ -396,6 +403,10 @@ while true; do
             run_alphafold="false"
             shift 1
             ;;
+        --debug)
+            debug="true"
+            shift 1
+            ;;
         --all)
             show_all_parameters
 	          exit 0
@@ -554,6 +565,14 @@ if [[ ${CORRECT_ID} -eq 0 ]]; then
 fi
 
 
+# Build Nextflow reporting flags.
+if [[ "${debug}" == "true" ]]; then
+    mkdir -p reports
+    trace_args="-with-trace reports/trace.txt -with-dag reports/dag.png -with-report reports/report.html -resume"
+else
+    trace_args="-with-trace"
+fi
+
 echo "Running pipeline..."
 nextflow run ${projectDir}/nf_pipeline_viral.nf \
     --projectDir ${projectDir} \
@@ -597,5 +616,5 @@ nextflow run ${projectDir}/nf_pipeline_viral.nf \
     --min_median_for_SV ${min_median_for_SV} \
     --run_alphafold ${run_alphafold} \
     -profile ${profile} \
-    -with-trace
+    ${trace_args}
 
