@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import getpass
+import os
 import shutil
 import socket
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -96,6 +98,7 @@ def _run_cmd_capture(
     cmd: List[str],
     cwd: Optional[Path] = None,
     timeout_s: int = 1800,
+    env: Optional[Dict[str, str]] = None,
 ) -> Tuple[bool, int, str, str]:
     """
     Run a command and capture stdout/stderr (truncated).
@@ -106,10 +109,26 @@ def _run_cmd_capture(
         capture_output=True,
         text=True,
         timeout=timeout_s,
+        env=env,
     )
     stdout = (p.stdout or "")[:8000]
     stderr = (p.stderr or "")[:8000]
     return p.returncode == 0, int(p.returncode), stdout, stderr
+
+
+# Extra args + environment to keep git strictly non-interactive.
+#
+# Bitbucket answers HTTP 401 on the git transport once a repo's anonymous access
+# is revoked, which makes git try to read credentials from the terminal. In a
+# container that surfaces as "could not read Username ... No such device or
+# address" and (without these guards) can hang waiting for a prompt.
+_GIT_NONINTERACTIVE_ARGS: List[str] = ["-c", "credential.helper="]
+
+
+def _git_env() -> Dict[str, str]:
+    env = dict(os.environ)
+    env["GIT_TERMINAL_PROMPT"] = "0"
+    return env
 
 
 def get_bitbucket_head_sha(*, clone_url: str, logger) -> Tuple[str, Dict[str, Any]]:
@@ -117,7 +136,11 @@ def get_bitbucket_head_sha(*, clone_url: str, logger) -> Tuple[str, Dict[str, An
     Fetch remote HEAD commit id via git ls-remote.
     """
     started_at = get_timestamp()
-    ok, rc, stdout, stderr = _run_cmd_capture(cmd=["git", "ls-remote", clone_url, "HEAD"], timeout_s=60)
+    ok, rc, stdout, stderr = _run_cmd_capture(
+        cmd=["git", *_GIT_NONINTERACTIVE_ARGS, "ls-remote", clone_url, "HEAD"],
+        timeout_s=60,
+        env=_git_env(),
+    )
     finished_at = get_timestamp()
 
     metrics: Dict[str, Any] = {
@@ -140,6 +163,64 @@ def get_bitbucket_head_sha(*, clone_url: str, logger) -> Tuple[str, Dict[str, An
 
     logger.info("Remote HEAD for %s: %s", clone_url, sha)
     return sha, metrics
+
+
+def check_git_remote_available(
+    *,
+    clone_url: str,
+    logger,
+    retries: int = 3,
+    interval: int = 10,
+) -> Dict[str, Any]:
+    """
+    Verify the git remote is actually clonable (anonymous access).
+
+    A plain HTTP check of the repository web page is not sufficient: Bitbucket
+    keeps returning 200/302 for the repo landing page even after a repo's git
+    access has been revoked. This probes the git transport itself via
+    ``git ls-remote`` so a private/removed repository fails here (as
+    DATABASE_UNAVAILABLE) instead of later at the UPDATE_STATUS step.
+
+    Returns a schema-shaped milestone payload (without 'name').
+    """
+    started_at = get_timestamp()
+    last_rc = -1
+    last_err = ""
+
+    for attempt in range(1, retries + 1):
+        logger.info("Attempt %d/%d: probing git remote %s", attempt, retries, clone_url)
+        ok, rc, stdout, stderr = _run_cmd_capture(
+            cmd=["git", *_GIT_NONINTERACTIVE_ARGS, "ls-remote", clone_url, "HEAD"],
+            timeout_s=60,
+            env=_git_env(),
+        )
+        if ok and stdout.strip():
+            return {
+                "status": StatusType.PASSED.value,
+                "message": "Git remote reachable",
+                "started_at": started_at,
+                "finished_at": get_timestamp(),
+                "attempts": attempt,
+                "retryable": True,
+                "metrics": {"clone_url": clone_url, "rc": rc},
+            }
+        last_rc = rc
+        last_err = stderr.strip()
+        if attempt < retries:
+            time.sleep(interval)
+
+    # A non-zero rc here (e.g. HTTP 401/404 on the git transport) reflects a
+    # permanent upstream change (repo made private / removed), not a transient
+    # network blip, so this failure is not worth retrying on the next schedule.
+    return {
+        "status": StatusType.FAILED.value,
+        "message": f"Git remote unavailable (rc={last_rc}): {last_err}",
+        "started_at": started_at,
+        "finished_at": get_timestamp(),
+        "attempts": retries,
+        "retryable": False,
+        "metrics": {"clone_url": clone_url, "rc": last_rc, "stderr_snippet": last_err},
+    }
 
 
 def determine_update_status_from_bitbucket_head(
@@ -271,8 +352,9 @@ def clone_repo_into_output_dir(*, clone_url: str, output_dir: Path, logger) -> D
         clone_target = tmp_root / "repo"
 
         ok, rc, stdout, stderr = _run_cmd_capture(
-            cmd=["git", "clone", "--depth", "1", clone_url, str(clone_target)],
+            cmd=["git", *_GIT_NONINTERACTIVE_ARGS, "clone", "--depth", "1", clone_url, str(clone_target)],
             timeout_s=3600,
+            env=_git_env(),
         )
         if not ok:
             finished_at = get_timestamp()
@@ -386,6 +468,41 @@ def processing_status_dummy() -> Dict[str, Any]:
     }
 
 
+def _combine_availability(page_avail: Dict[str, Any], git_avail: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Merge the HTTP page-availability milestone with the git-transport probe into a
+    single DATABASE_AVAILABILITY milestone.
+
+    Fails if either sub-check fails. The combined milestone is only retryable when
+    both sub-checks are retryable, so a permanent git 401/404 marks the whole
+    availability failure as non-retryable.
+    """
+    passed = (
+        page_avail["status"] == StatusType.PASSED.value
+        and git_avail["status"] == StatusType.PASSED.value
+    )
+
+    if passed:
+        message = "All required endpoints reachable"
+    elif page_avail["status"] != StatusType.PASSED.value:
+        message = page_avail.get("message", "Endpoint unreachable")
+    else:
+        message = git_avail.get("message", "Git remote unavailable")
+
+    return {
+        "status": StatusType.PASSED.value if passed else StatusType.FAILED.value,
+        "message": message,
+        "started_at": page_avail.get("started_at"),
+        "finished_at": git_avail.get("finished_at"),
+        "attempts": max(int(page_avail.get("attempts", 1) or 1), int(git_avail.get("attempts", 1) or 1)),
+        "retryable": bool(page_avail.get("retryable", True)) and bool(git_avail.get("retryable", True)),
+        "metrics": {
+            **page_avail.get("metrics", {}),
+            "git_remote": git_avail.get("metrics", {}),
+        },
+    }
+
+
 @click.command()
 @click.option("--workspace", type=str, help="Workspace path (used in report metadata).", required=True)
 @click.option("--run_id", type=str, default=None, help="Unique run ID.")
@@ -487,13 +604,24 @@ def main(
         return
 
     # 2) DATABASE_AVAILABILITY
-    # Check Bitbucket base + repo page (standardized composite milestone).
-    avail = composite_availability_check([BITBUCKET_BASE, repo_page], logger, retries=3, interval=10)
+    # Check Bitbucket base + repo page (HTTP), AND the git transport itself.
+    # The page checks alone give false positives: Bitbucket keeps serving the repo
+    # web page (HTTP 200/302) even when anonymous git access has been revoked, so we
+    # additionally probe `git ls-remote` here to fail early with DATABASE_UNAVAILABLE
+    # instead of later at UPDATE_STATUS.
+    page_avail = composite_availability_check([BITBUCKET_BASE, repo_page], logger, retries=3, interval=10)
+    git_avail = check_git_remote_available(clone_url=clone_url, logger=logger, retries=3, interval=10)
+
+    avail = _combine_availability(page_avail, git_avail)
     rb.add_named_milestone("DATABASE_AVAILABILITY", avail)
     remaining_steps.remove("DATABASE_AVAILABILITY")
     if avail["status"] != StatusType.PASSED.value:
         skip_remaining_steps(remaining_steps, "Skipped due to failed database availability check.")
-        rb.fail(code="DATABASE_UNAVAILABLE", message=avail.get("message", ""), retry_recommended=True)
+        rb.fail(
+            code="DATABASE_UNAVAILABLE",
+            message=avail.get("message", ""),
+            retry_recommended=bool(avail.get("retryable", True)),
+        )
         rb.finalize("FAIL")
         rb.write(str(report_dir / report_file))
         return
