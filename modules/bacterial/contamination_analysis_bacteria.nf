@@ -177,7 +177,7 @@ process run_metaphlan_illumina {
   container  = params.main_image
   containerOptions "--volume ${params.db_absolute_path_on_host}:/db"
   cpus { params.threads > 15 ? 15 : params.threads }
-  memory '40 GB'
+  memory '60 GB'
   time "40m"
   input:
   tuple val(x), path(reads), val(QC_STATUS), val(TOTAL_BASES)
