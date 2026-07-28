@@ -342,62 +342,65 @@ RUN curl -fsSL "https://github.com/oneapi-src/oneTBB/archive/${TBB_VERSION}.tar.
     tar -zxf ${TBB_VERSION}.tar.gz && \
     rm ${TBB_VERSION}.tar.gz
 
-RUN apt -y --no-install-recommends install gfortran-12 \
-                                          ibverbs-providers \
-                                          libboost1.74-dev \
-                                          libboost-date-time1.74-dev \
-                                          libboost-date-time1.74.0 \
-                                          libboost-date-time-dev \
-                                          libboost-dev \
-                                          libboost-filesystem1.74-dev \
-                                          libboost-filesystem1.74.0 \
-                                          libboost-filesystem-dev \
-                                          libboost-iostreams1.74-dev \
-                                          libboost-iostreams1.74.0 \
-                                          libboost-iostreams-dev \
-                                          libboost-program-options1.74-dev \
-                                          libboost-program-options1.74.0 \
-                                          libboost-program-options-dev \
-                                          libboost-regex1.74-dev \
-                                          libboost-regex1.74.0 \
-                                          libboost-serialization1.74-dev \
-                                          libboost-serialization1.74.0 \
-                                          libboost-system1.74-dev \
-                                          libboost-system1.74.0 \
-                                          libfabric1 \
-                                          libgfortran-12-dev \
-                                          libhwloc15 \
-                                          libhwloc-dev \
-                                          libhwloc-plugins \
-                                          libibverbs1 \
-                                          libibverbs-dev \
-                                          libjs-jquery-ui \
-                                          libjs-jquery \
-                                          libmunge2 \
-                                          libnl-3-200 \
-                                          libnl-3-dev \
-                                          libnl-route-3-200 \
-                                          libnl-route-3-dev \
-                                          libnuma-dev \
-                                          libopenmpi3 \
-                                          libopenmpi-dev \
-                                          libpciaccess0 \
-                                          libpmix2 \
-                                          libpmix-dev \
-                                          libprotobuf32 \
-                                          libprotobuf-dev \
-                                          libprotobuf-lite32 \
-                                          libprotoc32 \
-                                          libprotoc-dev \
-                                          libpsm2-2 \
-                                          libpsm-infinipath1 \
-                                          librdmacm1 \
-                                          libucx0 \
-                                          libxnvctrl0 \
-                                          ocl-icd-libopencl1 \
-                                          openmpi-bin \
-                                          openmpi-common \
-                                          protobuf-compiler
+    RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        gfortran-12 \
+        ibverbs-providers \
+        libboost1.74-dev \
+        libboost-date-time1.74-dev \
+        libboost-date-time1.74.0 \
+        libboost-date-time-dev \
+        libboost-dev \
+        libboost-filesystem1.74-dev \
+        libboost-filesystem1.74.0 \
+        libboost-filesystem-dev \
+        libboost-iostreams1.74-dev \
+        libboost-iostreams1.74.0 \
+        libboost-iostreams-dev \
+        libboost-program-options1.74-dev \
+        libboost-program-options1.74.0 \
+        libboost-program-options-dev \
+        libboost-regex1.74-dev \
+        libboost-regex1.74.0 \
+        libboost-serialization1.74-dev \
+        libboost-serialization1.74.0 \
+        libboost-system1.74-dev \
+        libboost-system1.74.0 \
+        libfabric1 \
+        libgfortran-12-dev \
+        libhwloc15 \
+        libhwloc-dev \
+        libhwloc-plugins \
+        libibverbs1 \
+        libibverbs-dev \
+        libjs-jquery-ui \
+        libjs-jquery \
+        libmunge2 \
+        libnl-3-200 \
+        libnl-3-dev \
+        libnl-route-3-200 \
+        libnl-route-3-dev \
+        libnuma-dev \
+        libopenmpi3 \
+        libopenmpi-dev \
+        libpciaccess0 \
+        libpmix2 \
+        libpmix-dev \
+        libprotobuf32 \
+        libprotobuf-dev \
+        libprotobuf-lite32 \
+        libprotoc32 \
+        libprotoc-dev \
+        libpsm2-2 \
+        libpsm-infinipath1 \
+        librdmacm1 \
+        libucx0 \
+        libxnvctrl0 \
+        ocl-icd-libopencl1 \
+        openmpi-bin \
+        openmpi-common \
+        protobuf-compiler && \
+    rm -rf /var/lib/apt/lists/*
 
 RUN curl -fsSL "https://github.com/oneapi-src/oneTBB/archive/${TBB_VERSION}.tar.gz" -o "${TBB_VERSION}.tar.gz" && \
     tar -zxf ${TBB_VERSION}.tar.gz && \
