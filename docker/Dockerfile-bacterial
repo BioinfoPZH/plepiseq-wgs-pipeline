@@ -18,7 +18,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
 
 RUN apt-get update --fix-missing && apt upgrade -y && \
-    apt-get install build-essential pkgconf python3.10 python3-pip default-jre curl unzip wget vim bc htop git gcc zlib1g-dev libbz2-dev libcurl4-gnutls-dev libssl-dev liblzma-dev python3-pycurl screen iqtree mash seqtk mafft -y
+    apt-get install build-essential pkgconf python3.10 python3-pip default-jre curl unzip wget vim bc htop git gcc zlib1g-dev libbz2-dev libcurl4-gnutls-dev libssl-dev liblzma-dev python3-pycurl screen iqtree mash seqtk -y
 
 
 RUN pip install ete3 numba numpy==1.23.4 biopython==1.83 psutil pysam 'cgecore>=1.5.5,<2.0' packaging tables==3.8.0 h5py xlrd scikit-learn fiona==1.9.6 geodatasets geopandas plotly
@@ -79,14 +79,13 @@ WORKDIR /opt/docker
 RUN git clone https://github.com/denglab/SeqSero2.git; cd /opt/docker/SeqSero2; git reset --hard ff1dce923159fe6a7a0ea2ff24cf1ddb2000071a; python3 -m pip install --user . ; cd /opt/docker
 
 # MAFFT
-# # Mafft webpage seems to be unresponsive moved mafft installation to apt (line 21) This is a temporal solution
-#RUN wget https://mafft.cbrc.jp/alignment/software/mafft-7.505-with-extensions-src.tgz ;\
-#    tar -zxf mafft-7.505-with-extensions-src.tgz; \
-#    cd /opt/docker/mafft-7.505-with-extensions/core ;\
-#    make; make install; \
-#    cd /opt/docker/mafft-7.505-with-extensions/extensions ;\
-#    make; make install ;\
-#    cd /opt/docker
+RUN wget https://mafft.cbrc.jp/alignment/software/mafft-7.505-with-extensions-src.tgz ;\
+    tar -zxf mafft-7.505-with-extensions-src.tgz; \
+    cd /opt/docker/mafft-7.505-with-extensions/core ;\
+    make; make install; \
+    cd /opt/docker/mafft-7.505-with-extensions/extensions ;\
+    make; make install ;\
+    cd /opt/docker
 
 # KMA 
 # Pinned in version 1.8.0
