@@ -45,7 +45,7 @@ process freeBayes {
       # do NOT apply the strict high-confidence QUAL threshold (\${qual}) here.
       # We keep only a very liberal QUAL > 1 guard to drop calls freebayes is
       # clearly against (QUAL ~ 0), which otherwise produce spurious ambiguity codes.
-      bcftools filter --include "QUAL > 1 & INFO/DP >=  ${params.min_cov}  & (SAF  + SAR)/(SRF + SRR + SAF + SAR) >= ${params.lower_ambig}  & (SAF  + SAR)/(SRF + SRR + SAF + SAR) <= ${params.upper_ambig} " \
+      bcftools filter --include "QUAL >= 0 & INFO/DP >=  ${params.min_cov}  & (SAF  + SAR)/(SRF + SRR + SAF + SAR) >= ${params.lower_ambig}  & (SAF  + SAR)/(SRF + SRR + SAF + SAR) <= ${params.upper_ambig} " \
              detected_variants_freebayes_fix.vcf > tmp_low.vcf
     
       introduce_amb_2_vcf.py tmp_low.vcf \
