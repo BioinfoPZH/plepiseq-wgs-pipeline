@@ -1,6 +1,36 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.8.0] - 2026-08-03
+### Added
+- Bacterial pHierCC / HierCC assignment via EnteroBase, PubMLST, and local `plepiseq-cluster` data, with contract-shaped fallbacks so Nextflow can continue on QC/API/DB failures.
+- Local HierCC level assignment (`phiercc_local.py`) using indexed clustering assets from `plepiseq-cluster`.
+- EQA2026 primer schemes for SARS-CoV-2 and RSV; updated RSV-A/RSV-B reference genomes (PP525321 / OR666591) and matching primer coordinates for RSV_Artic_V1 and RSV_WHO-2015.
+- RSV F-protein resistance analysis (nirsevimab / palivizumab / clesrovimab) integrated into the viral JSON report.
+- Nanopore structural-variant detection with cuteSV for amplicon-spanning deletions (SARS-CoV-2 and RSV), mirroring the Illumina Manta pattern where Medaka cannot call large SVs.
+- Provisional Legionella support: MLST when the Legionella MLST DB is installed, and AMR analysis via AMRFinder.
+- Merged filtered bacterial genome FASTA output and `genome_file_merged` / ambiguous-base metrics in consensus JSON.
+- `--debug` flag on viral and bacterial shell wrappers for richer Nextflow reporting (`trace` / `dag` / `report`) and `-resume`.
+
+### Changed
+- Refactored the bacterial workflow into reusable `modules/bacterial/*.nf` processes; preserved expected outputs on failed-QC paths.
+- Migrated pHierCC clustering downloads from the old git-tracked tree to **GitHub Releases** of `BioinfoPZH/plepiseq-cluster` (release-tag versioning).
+- Bacterial Nanopore polishing now uses the external pinned Medaka image instead of building Medaka into the bacterial Docker image.
+- Bumped FreeBayes to 1.3.10 and report SNPs/indels separately (`--max-complex-gap -1`) instead of complex multi-nucleotide events.
+- Tuned viral wrapper defaults (Illumina `max_depth`, species-specific ambiguity / coverage / Nanopore medaka and window settings) for current EQA practice; Influenza/RSV use a wider ambiguity window than SARS-CoV-2.
+- FreeBayes ambiguity path no longer applies the strict high-confidence QUAL threshold (ambiguous sites often have low QUAL); high-confidence calls still require QUAL.
+- `prep_own_vcf.py` aligns with MUSCLE and hardens trailing-window / `tmp.fasta` handling.
+- Raised bacterial Kraken2 memory 100→120 GB and MetaPhlAn Illumina 40→60 GB to avoid SLURM OOM on growing DBs / peak RSS.
+- Docker maintenance: pin bacterial tool versions (e.g. SeqSero2, KMA); pin AlphaFold `torch` to 2.12 (avoid setuptools conflict); viral apt index refresh; bacterial MAFFT install restored once the upstream endpoint recovered.
+- snpEff hRSV_A/B databases rebuilt for the new RSV references (including NS1 gene fix on RSV-A).
+
+### Fixed
+- pHierCC EnteroBase Basic-auth credential formatting; local HierCC lookup for STs below the first index checkpoint; leftover rename to `version_local` / `version_remote`.
+- CGE MLST DB updater: fail early at DATABASE_AVAILABILITY when the git remote is unreachable (non-interactive), instead of mid-run after wiping the workspace.
+- Bacterial Prokka/MLST dummy outputs and Legionella MLST DB path detection when modules run on failed QC or unsupported genera.
+- cuteSV coverage-ratio / VAF tuning and Nanopore consensus wiring for the SV path.
+- Trimmomatic forced to Phred33; RSV detect_type / Nextclade / snpEff accession updates; AlphaFold SLURM time limit extended slightly.
+
 ## [1.7.1] - 2026-06-21
 ### Fixed
 - Fixed the Freyja database download after upstream replaced the LFS `usher_barcodes.csv` with a gzipped `usher_barcodes.csv.gz`; the client now fetches and decompresses it, staging downloads and restoring the previous database if a run fails.
