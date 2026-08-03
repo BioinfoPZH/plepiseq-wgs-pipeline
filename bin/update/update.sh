@@ -588,7 +588,7 @@ if [ ${db_name} == "all" ];then
 	echo "Downloading data for virulencefinder at: $(date +"%H:%M %d-%m-%Y")"
 	update_cge_db virulencefinder_db >> /dev/null 2>&1
 	echo "Downloading data for vfcb at: $(date +"%H:%M %d-%m-%Y")"
-	update_vfdb ${cpus}
+	update_vfdb ${cpus} >> /dev/null 2>&1
 	echo "Downloading MLST data at: $(date +"%H:%M %d-%m-%Y")"
 	update_mlst ${genus}  >> /dev/null 2>&1
 	echo "Downloading cgMLST data at: $(date +"%H:%M %d-%m-%Y")"

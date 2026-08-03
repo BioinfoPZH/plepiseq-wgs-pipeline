@@ -52,5 +52,6 @@ python_tests/__pycache__
 bin/update/__pycache__/
 bin/update/utils/__pycache__/
 
-
+bin/eqa_utils/ # temporary directory for eqa utils
+tmp/
 

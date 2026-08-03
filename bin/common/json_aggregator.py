@@ -184,10 +184,11 @@ def json_aggregator(args):
     if args.consensus:
         dane = json.load(open(args.consensus))
         # consensus has data from two tabs
-        output["output"]["viral_genome_data"]["total_length_value"] = dane["total_length_value"]
-        output["output"]["viral_genome_data"]["number_of_Ns_value"] = dane["number_of_Ns_value"]
-        del dane['total_length_value']
-        del dane["number_of_Ns_value"]
+        output["output"]["viral_genome_data"]["total_length_value"] = dane.pop("total_length_value")
+        output["output"]["viral_genome_data"]["number_of_Ns_value"] = dane.pop("number_of_Ns_value")
+        # number_of_ambiguous_value was added later; tolerate older consensus JSONs without it
+        if "number_of_ambiguous_value" in dane:
+            output["output"]["viral_genome_data"]["number_of_ambiguous_value"] = dane.pop("number_of_ambiguous_value")
         output["output"]["genome_files_data"] = dane
 
     if args.snpeff:
@@ -200,6 +201,13 @@ def json_aggregator(args):
         output = fill_infl_data(output_local=output,
                                 resistance=args.drug_resistance,
                                 reassortment=args.reassortment)
+
+    if args.drug_resistance and args.pathogen == "rsv":
+        resistance = json.load(open(args.drug_resistance))
+        if "rsv_data" not in output["output"]:
+            output["output"]["rsv_data"] = {}
+        output["output"]["rsv_data"] = {**output["output"]["rsv_data"], **resistance}
+
     if args.mapping:
         output["output"]["viral_mapping_data"] = json.load(open(args.mapping))
 

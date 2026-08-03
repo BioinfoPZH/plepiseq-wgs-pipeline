@@ -1,6 +1,10 @@
 ARG PIP_TIMEOUT=30
 ARG PIP_INDEX_URL=https://pypi.org/simple
 ARG PIP_TRUSTED_HOST
+# Liczba watkow uzywana przez "make -j" / "spades_compile.sh -j" we wszystkich
+# regulach RUN. Override przy buildzie: docker build --build-arg NPROC=8 ...
+# Uwaga: Prodigal i Flye sa celowo budowane szeregowo (patrz komentarze nizej).
+ARG NPROC=20
 
 FROM nvidia/cuda:12.1.0-cudnn8-runtime-ubuntu22.04
 LABEL maintainer="Michal Lazniewski <mlazniewski@pzh.gov.pl>"
@@ -8,6 +12,7 @@ LABEL maintainer="Michal Lazniewski <mlazniewski@pzh.gov.pl>"
 ARG PIP_TIMEOUT
 ARG PIP_INDEX_URL
 ARG PIP_TRUSTED_HOST
+ARG NPROC
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
@@ -59,7 +64,8 @@ WORKDIR /opt/docker/
 RUN git clone https://github.com/ablab/spades.git ;\
     cd /opt/docker/spades; \
     git reset --hard 874c54b; \
-    ./spades_compile.sh -j 10;\
+    ./spades_compile.sh -j ${NPROC};\
+    rm -r build_spades; \
     ln -sfn /opt/docker/spades/bin/spades.py /opt/docker/EToKi/externals/spades.py ;\
     cd /opt/docker
 
@@ -68,8 +74,9 @@ RUN wget -O /opt/docker/EToKi/externals/pilon.jar https://github.com/broadinstit
 
 
 # SeqSero2
+# Pinned in version 1.8.0
 WORKDIR /opt/docker
-RUN git clone https://github.com/denglab/SeqSero2.git; cd /opt/docker/SeqSero2; python3 -m pip install --user . ; cd /opt/docker
+RUN git clone https://github.com/denglab/SeqSero2.git; cd /opt/docker/SeqSero2; git reset --hard ff1dce923159fe6a7a0ea2ff24cf1ddb2000071a; python3 -m pip install --user . ; cd /opt/docker
 
 # MAFFT
 RUN wget https://mafft.cbrc.jp/alignment/software/mafft-7.505-with-extensions-src.tgz ;\
@@ -80,7 +87,9 @@ RUN wget https://mafft.cbrc.jp/alignment/software/mafft-7.505-with-extensions-sr
     make; make install ;\
     cd /opt/docker
 
-RUN git clone https://bitbucket.org/genomicepidemiology/kma.git; cd kma ; make; cd /opt/docker
+# KMA 
+# Pinned in version 1.8.0
+RUN git clone https://bitbucket.org/genomicepidemiology/kma.git; cd kma; git reset --hard 9b4f34be62b3445b13726f0be51faab6f9d78fe2; make; cd /opt/docker
 
 ### Most are just python scripts
 ENV VIRULENCEFINDER_VERSION=2.0.5
@@ -88,10 +97,10 @@ ENV VIRULENCEFINDER_VERSION=2.0.5
 ### Plasmidfinder version is pinned to commit from 	2023-08-16, must be updated eventually
 	
 RUN git clone https://bitbucket.org/genomicepidemiology/plasmidfinder.git; cd plasmidfinder; git reset --hard 113df12; cd /opt/docker; \
-    git clone https://bitbucket.org/genomicepidemiology/speciesfinder.git; cd speciesfinder; python -m pip install --no-cache-dir . ; cd /opt/docker; \
-    git clone https://bitbucket.org/genomicepidemiology/spifinder.git; \
-    git clone https://bitbucket.org/genomicepidemiology/cgmlstfinder.git; \
-    git clone https://bitbucket.org/genomicepidemiology/mlst.git ;\
+    git clone https://bitbucket.org/genomicepidemiology/speciesfinder.git; cd speciesfinder; git reset --hard fdc37dade40bc6891afd7884ebf6e08aeecda494; python -m pip install --no-cache-dir . ; cd /opt/docker; \
+    git clone https://bitbucket.org/genomicepidemiology/spifinder.git; cd spifinder; git reset --hard b11a075691009fe865eb25e19a89f921df1157f0; cd /opt/docker; \
+    git clone https://bitbucket.org/genomicepidemiology/cgmlstfinder.git; cd cgmlstfinder; git reset --hard 18b27a0008bdd3710a344b3d3559559c2dd76917; cd /opt/docker; \
+    git clone https://bitbucket.org/genomicepidemiology/mlst.git; cd mlst; git reset --hard bb8f0197bb9094a8ce00e338cb3cc59289764c8c; cd /opt/docker; \
     pip install resfinder==4.7.0 ;\
     git clone https://bitbucket.org/genomicepidemiology/virulencefinder.git; cd virulencefinder; git checkout tags/${VIRULENCEFINDER_VERSION} ;\
     cd /opt/docker
@@ -111,14 +120,17 @@ RUN git clone https://github.com/biobakery/MetaPhlAn.git; \
     cd /opt/docker 
 
 # Prodigal (alternative to Prokka)
+# -j 20 does not speed up the installation
+# Pinned in version 1.8.0
 RUN git clone https://github.com/hyattpd/Prodigal.git; \
     cd /opt/docker/Prodigal; \
-    make install; \
+    git reset --hard c1e2d361479cc1b18175ea79ebd8ff10411c46cb; \
+    make install ; \
     cd /opt/docker
 
 # Sistr
-
-RUN git clone https://github.com/phac-nml/sistr_cmd; cd /opt/docker/sistr_cmd; python setup.py install; cd /opt/docker
+# Pinned in version 1.8.0
+RUN git clone https://github.com/phac-nml/sistr_cmd; cd /opt/docker/sistr_cmd; git reset --hard 10ba97fd720db2373e81eff4922b663147c1a7df; python setup.py install; rm -r build; cd /opt/docker
  
 ## Updating Sistr database
 ### Sistr only reads database from specific loaction within filesystem amd this cannot be changed
@@ -149,30 +161,6 @@ RUN git clone https://github.com/fenderglass/Flye ;\
     make ;\
     cd /opt/docker
 
-# Medaka
-
-RUN pip install urllib3==1.26.16 pysam==0.21.0 parasail==1.3.4 pyabpoa==1.4.0 ;\
-    apt update ;\
-    apt install python3.10-venv libncurses5-dev -y
-
-# Medaka bacterial pipelien use it, but pipeline should be migrated to use the same image viral pipeline is currently using
-# Pin medaka to version 2.0.1
-
-RUN python3 -m pip install --no-cache-dir -U pip wheel "setuptools<81" Cython
-RUN apt install -y git-lfs file ;\
-    git lfs install ;\ 
-    git clone https://github.com/nanoporetech/medaka.git /opt/docker/medaka ;\
-    cd /opt/docker/medaka ;\
-    git reset --hard 03b5848 ;\
-    sed -i 's/pip install pip wheel setuptools --upgrade/pip install -U pip wheel "setuptools<81"/g' Makefile ;\
-    sed -i 's/--upgrade pip setuptools/--upgrade pip "setuptools<81"/g' Makefile ;\
-    sed -i -E 's/(pip3 install)[[:space:]]+\./\1 --no-build-isolation ./g' Makefile ;\
-    sed -i -E 's/(pip install)[[:space:]]+-e[[:space:]]+\./\1 --no-build-isolation -e ./g' Makefile ;\
-    sed -i -E 's/(pip install)[[:space:]]+\./\1 --no-build-isolation ./g' Makefile ;\
-    make install_root ;\
-    cd /opt/docker
-
-
 
 # FASTQC
 
@@ -193,23 +181,24 @@ WORKDIR /opt/docker
 RUN cd /opt/docker ;\
     wget http://eddylab.org/software/hmmer/hmmer-3.3.2.tar.gz; tar -zxf hmmer-3.3.2.tar.gz ;\
     cd /opt/docker/hmmer-3.3.2 ;\
-    ./configure; make; make install ;\
+    ./configure; make -j ${NPROC}; make install ;\
     cd /opt/docker 
  
 ## AMRFIDER
+# Pinned to commit 81f509d2e9912a46e8e9a0208c04a680943e79e6 from 1.8.0pre8 build
 RUN git clone https://github.com/ncbi/amr.git ;\
     cd /opt/docker/amr ;\
-    git reset --hard 81f509d ;\
+    git reset --hard 81f509d2e9912a46e8e9a0208c04a680943e79e6 ;\
     git checkout stxtype ;\
     git submodule update --init ;\
-    make; make install ;\
+    make -j ${NPROC}; make install ;\
     cd /opt/docker
 
 # ECTyper
-# Fixed version 2.0 commit 21f2cbd
+# Pinned to commit 21f2cbdcfe501198491648d73643f47b333ad36f from 1.8.0pre8 build
 RUN git clone https://github.com/phac-nml/ecoli_serotyping.git ;\
     cd /opt/docker/ecoli_serotyping ;\
-    git reset --hard 21f2cbd ;\
+    git reset --hard 21f2cbdcfe501198491648d73643f47b333ad36f ;\
     pip3 install . ;\
     ectyper_init ;\
     cd /opt/docker
@@ -219,7 +208,7 @@ RUN python3 -m pip install --no-cache-dir --force-reinstall --no-deps "biopython
 # Custom scripts 
 COPY bin/bacteria/all_functions_salmonella.py bin/bacteria/run_blastn_ver11.sh bin/bacteria/parse_fastqc_output.py data/bacteria/ne_10m_admin_0_countries.geojson bin/bacteria/plot_historical_data_plotly.py  bin/bacteria/parse_speciesfinder.py /data/
 
-COPY bin/bacteria/json_output_contaminations.py bin/bacteria/coverage_filter.py bin/bacteria/calculate_stats.py bin/bacteria/run_VFDB.sh bin/bacteria/run_fastqc_and_generate_json.py bin/bacteria/initial_mlst_parser.py bin/bacteria/extract_final_stats_parser.py bin/bacteria/resfinder_parser.py bin/bacteria/amrfinder_parser.py bin/bacteria/plasmidfinder_parser.py bin/bacteria/sistr_parser.py bin/bacteria/seqsero_parser.py bin/bacteria/ectyper_parser.py bin/bacteria/spifinder_parser.py bin/bacteria/vfdb_parser.py /bin/bacteria/virulencefinder_parser.py bin/bacteria/prepare_full_json.py /opt/docker/EToKi/externals
+COPY bin/bacteria/json_output_contaminations.py bin/bacteria/coverage_filter.py bin/bacteria/calculate_stats.py bin/bacteria/run_VFDB.sh bin/bacteria/run_fastqc_and_generate_json.py bin/bacteria/initial_mlst_parser.py bin/bacteria/extract_final_stats_parser.py bin/bacteria/resfinder_parser.py bin/bacteria/amrfinder_parser.py bin/bacteria/plasmidfinder_parser.py bin/bacteria/sistr_parser.py bin/bacteria/seqsero_parser.py bin/bacteria/ectyper_parser.py bin/bacteria/spifinder_parser.py bin/bacteria/vfdb_parser.py /bin/bacteria/virulencefinder_parser.py bin/bacteria/prepare_full_json.py bin/bacteria/phiercc_enterobase.py bin/bacteria/phiercc_pubmlst.py bin/bacteria/phiercc_local.py /opt/docker/EToKi/externals
 
 COPY VERSION /VERSION
 

@@ -19,9 +19,9 @@
 
 # Single source of truth for all supported primer schemes
 # SARS-CoV-2 primers
-SARSCOV2_PRIMERS=(EQA2023.SARS1 EQA2023.SARS2 EQA2024.V4_1 EQA2024.V4_1.nanopore EQA2024.V5_3 Artic_V1 Artic_V2 Artic_V3 Artic_V4 Artic_V4.1 Artic_V5.3.2 Artic_V5.4.2 Midnight_1200nt VarSkip_V1a VarSkip_V2 VarSkip_V2b VarSkip_V1a_long)
+SARSCOV2_PRIMERS=(EQA2023.SARS1 EQA2023.SARS2 EQA2024.V4_1 EQA2024.V4_1.nanopore EQA2024.V5_3 Artic_V1 Artic_V2 Artic_V3 Artic_V4 Artic_V4.1 Artic_V5.3.2 Artic_V5.4.2 Midnight_1200nt VarSkip_V1a VarSkip_V2 VarSkip_V2b VarSkip_V1a_long EQA2026.SARS1 EQA2026.SARS2)
 # RSV primers  
-RSV_PRIMERS=(RSV_WHO-2015 RSV_Artic_V1)
+RSV_PRIMERS=(RSV_WHO-2015 RSV_Artic_V1 RSV_EQA20206.illumina RSV_EQA20206.nanopore)
 # Influenza primers (placeholder -- subtype-specific primers are selected automatically)
 INFLUENZA_PRIMERS=(UniRef)
 # Combined list for validation
@@ -60,6 +60,10 @@ alphafold_image="plepiseq-wgs-pipeline-alphafold:latest"
 
 ## Nextflow executor
 profile="local"
+
+# Debug mode: when enabled the pipeline is run with extra Nextflow reporting
+# (trace/dag/report) and -resume
+debug="false"
 
 # Parmaters related to the resources available to the pipeline (max PER sample) 
 # if N samples are analyzed the pipeline will use at most N times threads
@@ -214,12 +218,15 @@ show_all_parameters() {
     echo ""
     echo "  --no-alphafold                  Skip calculations of 3D model with alphafold"
     echo ""
+    echo "  --debug                         Run Nextflow with extra reporting (reports/trace.txt, reports/dag.png,"
+    echo "                                  reports/report.html) and -resume. Uruchom pipeline w trybie debug"
+    echo ""
 }
 
 
 
 # Parse arguments
-OPTIONS=$(getopt -o h --long machine:,profile:,reads:,primers_id:,species:,adapters_id:,threads:,projectDir:,external_databases_path:,main_image:,manta_image:,medaka_image:,alphafold_image:,max_number_for_SV:,variant:,min_number_of_reads:,expected_genus_value:,min_median_quality:,quality_initial:,length:,max_depth:,min_cov:,mask:,quality_snp:,pval:,lower_ambig:,upper_ambig:,window_size:,min_mapq:,quality_for_coverage:,freyja_minq:,bed_offset:,extra_bed_offset:,medaka_model:,medaka_chunk_len:,medaka_chunk_overlap:,first_round_pval:,second_round_pval:,results_dir:,min_median_for_SV:,no-alphafold,all,help -- "$@")
+OPTIONS=$(getopt -o h --long machine:,profile:,reads:,primers_id:,species:,adapters_id:,threads:,projectDir:,external_databases_path:,main_image:,manta_image:,medaka_image:,alphafold_image:,max_number_for_SV:,variant:,min_number_of_reads:,expected_genus_value:,min_median_quality:,quality_initial:,length:,max_depth:,min_cov:,mask:,quality_snp:,pval:,lower_ambig:,upper_ambig:,window_size:,min_mapq:,quality_for_coverage:,freyja_minq:,bed_offset:,extra_bed_offset:,medaka_model:,medaka_chunk_len:,medaka_chunk_overlap:,first_round_pval:,second_round_pval:,results_dir:,min_median_for_SV:,no-alphafold,debug,all,help -- "$@")
 
 eval set -- "$OPTIONS"
 
@@ -396,6 +403,10 @@ while true; do
             run_alphafold="false"
             shift 1
             ;;
+        --debug)
+            debug="true"
+            shift 1
+            ;;
         --all)
             show_all_parameters
 	          exit 0
@@ -432,6 +443,7 @@ if [[ "$profile" != "slurm" && "$profile" != "local" ]]; then
 fi
 
 # Check if user provided correct species and if so set defaults
+## Warning most parameters are purely empirical to match expected EQA results
 if [[ "$species" == "SARS-CoV-2" ]]; then
 	[[ -z "${max_number_for_SV}" ]] && max_number_for_SV=200000
 	[[ -z "${min_median_for_SV}" ]] && min_median_for_SV=50
@@ -447,56 +459,70 @@ else
     exit 1
 fi
 
-# Check if user provided correct sequencing platform and if so set default values for the main program
+if [ ${species}  == 'SARS-CoV-2' ]; then
+    # RIVM thresholds from EQA
+    [[ -z "${lower_ambig}" ]] && lower_ambig=0.45
+    [[ -z "${upper_ambig}" ]] && upper_ambig=0.55
+    [[ -z "${min_cov}" ]] && min_cov=20
+    [[ -z "${mask}" ]] && mask=20
+else
+    # For RSV and Influenza we use EQA proposed thresholds (Pasteur)
+    [[ -z "${lower_ambig}" ]] && lower_ambig=0.4
+    [[ -z "${upper_ambig}" ]] && upper_ambig=0.6
+    [[ -z "${min_cov}" ]] && min_cov=10
+    [[ -z "${mask}" ]] && mask=10
+fi
+
+# Check if user provided correct sequencing platform and if so set 
+# default values for the main program
 if [[ "$machine" == "Illumina" ]]; then
 	[[ -z "${min_number_of_reads}" ]] && min_number_of_reads=1
 	[[ -z "${expected_genus_value}" ]] && expected_genus_value=5
 	[[ -z "${min_median_quality}" ]] && min_median_quality=0
 	[[ -z "${quality_initial}" ]] && quality_initial=5
 	[[ -z "${length}" ]] && length=90
-	[[ -z "${max_depth}" ]] && max_depth=600
-	[[ -z "${min_cov}" ]] && min_cov=20
-	[[ -z "${mask}" ]] && mask=20
+	[[ -z "${max_depth}" ]] && max_depth=1000
 	[[ -z "${quality_snp}" ]] && quality_snp=15
 	[[ -z "${pval}" ]] && pval=0.05
-	[[ -z "${lower_ambig}" ]] && lower_ambig=0.45
-	[[ -z "${upper_ambig}" ]] && upper_ambig=0.55
 	[[ -z "${window_size}" ]] && window_size=50 
 	[[ -z "${min_mapq}" ]] && min_mapq=30
 	[[ -z "${quality_for_coverage}" ]] && quality_for_coverage=10
 	[[ -z "${freyja_minq}" ]] && freyja_minq=20
-
 elif [[ "$machine" == "Nanopore" ]]; then
 	[[ -z "${freyja_minq}" ]] && freyja_minq=2
 	[[ -z "${bed_offset}" ]] && bed_offset=10
 	[[ -z "${extra_bed_offset}" ]] && extra_bed_offset=10 
 	[[ -z "${min_mapq}" ]] && min_mapq=30
-	[[ -z "${window_size}" ]] && window_size=50
+	
 	[[ -z "${length}" ]] && length=0.49 # for nanopore nanopore min length is relative to the expected segment/amplikon length
 	[[ -z "${medaka_model}" ]] && medaka_model="r941_min_sup_variant_g507" # Flow cell v9.4.1, for first round of medaka for the second round we use r941_min_sup_g507
 	if [ ${species}  == 'SARS-CoV-2' ]; then
 		[[ -z "${medaka_chunk_len}" ]] && medaka_chunk_len=5000  
 		[[ -z "${medaka_chunk_overlap}" ]] && medaka_chunk_overlap=4000
+        [[ -z "${first_round_pval}" ]] && first_round_pval=0.05
+        [[ -z "${max_depth}" ]] && max_depth=3000
+        [[ -z "${window_size}" ]] && window_size=50
 	elif [ ${species}  == 'Influenza' ]; then
-		[[ -z "${medaka_chunk_len}" ]] && medaka_chunk_len=1000  
-                [[ -z "${medaka_chunk_overlap}" ]] && medaka_chunk_overlap=500
+		[[ -z "${medaka_chunk_len}" ]] && medaka_chunk_len=800  
+        [[ -z "${medaka_chunk_overlap}" ]] && medaka_chunk_overlap=400
+        [[ -z "${first_round_pval}" ]] && first_round_pval=0.25
+        [[ -z "${max_depth}" ]] && max_depth=2000
+        [[ -z "${window_size}" ]] && window_size=50
 	elif [ ${species}  == 'RSV' ]; then
-		[[ -z "${medaka_chunk_len}" ]] && medaka_chunk_len=5000
-                [[ -z "${medaka_chunk_overlap}" ]] && medaka_chunk_overlap=4000
+		[[ -z "${medaka_chunk_len}" ]] && medaka_chunk_len=10000
+        [[ -z "${medaka_chunk_overlap}" ]] && medaka_chunk_overlap=8000
+        [[ -z "${first_round_pval}" ]] && first_round_pval=0.05
+        [[ -z "${max_depth}" ]] && max_depth=3000
+        [[ -z "${window_size}" ]] && window_size=100
 	fi
 	[[ -z "${min_number_of_reads}" ]] && min_number_of_reads=1
 	[[ -z "${expected_genus_value}" ]] && expected_genus_value=5
 	[[ -z "${min_median_quality}" ]] && min_median_quality=0
 	[[ -z "${quality_initial}" ]] && quality_initial=2
-	[[ -z "${max_depth}" ]] && max_depth=600
-  	[[ -z "${min_cov}" ]] && min_cov=50
-  	[[ -z "${mask}" ]] && mask=50
+
   	[[ -z "${quality_snp}" ]] && quality_snp=5
   	[[ -z "${pval}" ]] && pval=0.05
-	[[ -z "${first_round_pval}" ]] && first_round_pval=0.05
 	[[ -z "${second_round_pval}" ]] && second_round_pval=0.05
-  	[[ -z "${lower_ambig}" ]] && lower_ambig=0.45
-  	[[ -z "${upper_ambig}" ]] && upper_ambig=0.55
   	[[ -z "${window_size}" ]] && window_size=50
 	[[ -z "${quality_for_coverage}" ]] && quality_for_coverage=1
 
@@ -538,6 +564,14 @@ if [[ ${CORRECT_ID} -eq 0 ]]; then
     exit 1
 fi
 
+
+# Build Nextflow reporting flags.
+if [[ "${debug}" == "true" ]]; then
+    mkdir -p reports
+    trace_args="-with-trace reports/trace.txt -with-dag reports/dag.png -with-report reports/report.html -resume"
+else
+    trace_args="-with-trace"
+fi
 
 echo "Running pipeline..."
 nextflow run ${projectDir}/nf_pipeline_viral.nf \
@@ -582,5 +616,5 @@ nextflow run ${projectDir}/nf_pipeline_viral.nf \
     --min_median_for_SV ${min_median_for_SV} \
     --run_alphafold ${run_alphafold} \
     -profile ${profile} \
-    -with-trace
+    ${trace_args}
 

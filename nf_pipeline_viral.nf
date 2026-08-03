@@ -190,6 +190,9 @@ include { merging_nanopore as merging_nanopore_2 } from "${modules}/common/mergi
 // // // // Illumina
 include { picard_downsample_multisegment as picard_downsample } from "${modules}/common/picard.nf"
 include { introduce_SV_with_manta } from "${modules}/common/manta.nf"
+// // // SARS-CoV-2
+// // // // Nanopore
+include { introduce_SV_with_cutesv } from "${modules}/sarscov2/cutesv.nf"
 // // End of Section // //
 
 
@@ -221,7 +224,10 @@ include { substitute_ref_genome } from "${modules}/common/substitute_ref.nf"
 // // // // Illumina
 include { consensus_illumina } from "${modules}/common/consensus.nf"
 // // // // Nanopore
+// // // // // INFL + RSV
 include { consensus_nanopore } from "${modules}/common/consensus.nf"
+// // // // // SARS-CoV-2
+include { consensus_nanopore_one_segment } from "${modules}/common/consensus.nf"
 // // End of Section // //
 
 
@@ -229,7 +235,7 @@ include { consensus_nanopore } from "${modules}/common/consensus.nf"
 // // // Common
 // // // // Common
 include { vcf_from_fasta } from "${modules}/common/vcf_from_fasta.nf"
-include { snpEff_nanopore as snpEff } from "${modules}/common/snpEff.nf"
+include { snpEff_common as snpEff } from "${modules}/common/snpEff.nf"
 // // End of Section // //
 
 
@@ -277,8 +283,11 @@ include { freyja_infl } from "${modules}/infl/freyja_infl.nf"
 
 // // Modules to predict drug resistance
 // // // Influenza
-// // // // Common
+// // // // 
 include { resistance as resistance_influenza } from "${modules}/infl/resistance.nf"
+// // // RSV
+// // // // Common
+include { resistance_rsv } from "${modules}/rsv/rsv_resistance.nf"
 // // End of Section // //
 
 
@@ -485,9 +494,28 @@ workflow {
 
         to_final_genome = lowCov_out.fasta.join(novel_genome_2_out.fasta_and_QC)
         to_final_genome = to_final_genome.join(medaka_varscan_integration_2_out.reference_genome)
-        prefinal_genome_out = consensus_nanopore(to_final_genome)  
-        final_genome_out = substitute_ref_genome(prefinal_genome_out.fasta_refgenome_and_qc.join(detect_type_out.only_genome))
- 
+        
+
+        // SARS-CoV-2 / RSV Nanopore: run cuteSV to recover amplicon-spanning
+        // SVs (typically large deletions >= 0.8 * amplicon length) that medaka
+        // cannot call. SVs are merged into the per-segment SNP consensus at the
+        // FASTA layer via insert_SV_python2.py, mirroring the manta integration
+        // on the Illumina branch. substitute_ref_genome then restores the
+        // original reference for snpEff/nextclade as before.
+        // For RSV schemes with amplicons longer than CUTESV_MAX_SV_LENGTH
+        // (e.g. RSV_WHO-2015 at ~4 kb) the filter is intentionally a no-op
+        // since medaka already resolves any internal deletion.
+        if ( params.species  == 'SARS-CoV-2' || params.species  == 'RSV' ) {
+          prefinal_genome_out = consensus_nanopore_one_segment(to_final_genome)
+          to_cutesv = merging_2_out.to_medaka.join(detect_type_out.primers, by: 0)
+          to_cutesv = to_cutesv.join(prefinal_genome_out.multiple_fastas, by: 0)
+          cutesv_out = introduce_SV_with_cutesv(to_cutesv)
+          final_genome_out = substitute_ref_genome(cutesv_out.fasta_refgenome_and_qc.join(detect_type_out.only_genome))
+        } else {
+          prefinal_genome_out = consensus_nanopore(to_final_genome)
+          final_genome_out = substitute_ref_genome(prefinal_genome_out.fasta_refgenome_and_qc.join(detect_type_out.only_genome))
+        }
+
   }
   // Post FASTA generation modules mostly common for nanopore and illumina
 
@@ -513,13 +541,19 @@ workflow {
    alphafold_out = alphafold_dummy(delayed_alphafold)
  }
   
-  if ( params.species  == 'SARS-CoV-2' || params.species  == 'RSV' ) {
+  // Nextclade and resistance modules are species-aware
+  if ( params.species  == 'SARS-CoV-2' ) {
+
       nextclade_out = nextclade_noninfluenza(final_genome_out.fasta_refgenome_and_qc)
   } else if (params.species  == 'Influenza') {
       // manta_out.fasta_refgenome_and_qc.join(detect_subtype_illumina_out.subtype_id, by:0)
       final_genome_and_influenza_subtype = final_genome_out.fasta_refgenome_and_qc.join(detect_subtype_out.subtype_id, by:0)
       nextclade_out = nextclade_influenza(final_genome_and_influenza_subtype)
       resistance_out = resistance_influenza(nextalign_out.to_resistance)
+  } else if (params.species  == 'RSV') {
+      nextclade_out = nextclade_noninfluenza(final_genome_out.fasta_refgenome_and_qc)
+      for_rsv_resistance = final_genome_out.fasta_and_qc.join(detect_type_out.subtype_id, by:0)
+      resistance_out = resistance_rsv(for_rsv_resistance)
   }
   
   // modeller_out = modeller(nextclade_out.to_modeller)
@@ -574,7 +608,11 @@ workflow {
   if(params.machine == 'Illumina') {
     for_json_aggregator = for_json_aggregator.join(final_genome_out.json) // tylko illumina
   } else if (params.machine == 'Nanopore') {
-    for_json_aggregator = for_json_aggregator.join(prefinal_genome_out.json) // tylko nanopore
+    if ( params.species  == 'SARS-CoV-2' || params.species  == 'RSV' ) {
+      for_json_aggregator = for_json_aggregator.join(cutesv_out.json) // tylko nanopore SARS-CoV-2 + RSV
+    } else {  
+      for_json_aggregator = for_json_aggregator.join(prefinal_genome_out.json) // tylko nanopore INFL 
+    }
   }
   
   for_json_aggregator = for_json_aggregator.join(pangolin_out.json)
@@ -582,7 +620,7 @@ workflow {
   for_json_aggregator = for_json_aggregator.join(snpEff_out)
   for_json_aggregator = for_json_aggregator.join(alphafold_out.json)
   
-  if ( params.species  == 'Influenza' ) {
+  if ( params.species  == 'Influenza' || params.species  == 'RSV' ) {
     for_json_aggregator = for_json_aggregator.join(resistance_out.json)
   }
 

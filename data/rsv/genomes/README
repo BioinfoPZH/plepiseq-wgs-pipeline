@@ -1,4 +1,7 @@
-# Dla RSV A wybrana jako sekwencje referencyjna sekwencje szczepu wskazanego w nextclade
-# Dla RSV_B wybrano jako sekwencje referencyjna sekwencje szczepu z artic, ale wprowadzono w niej recznie mutacje /do przypomnienia jaka ta mutacja i dlaczego ja wporwadzono/
-Katalogi RSV_A i RSV_B  zawieraja zidenksowane sekwencje odpowiednich typow 
-Katalog RSV zawiera jedna faste z sekwenecjami obu typow w celu okreslenia ktory typ jest w probce
+Since version 1.8.0 we have switched to the EQA2026-recommended reference
+genomes for Human respiratory syncytial virus:
+
+  - RSV_A: PP525321 (https://www.ncbi.nlm.nih.gov/nuccore/PP525321.1/)
+  - RSV_B: OR666591 (https://www.ncbi.nlm.nih.gov/nuccore/OR666591)
+
+Primer boundaries have been adjusted to match these new reference genomes.

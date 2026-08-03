@@ -73,7 +73,8 @@ process json_aggregator_rsv_illumina {
           path(pangolin_json),
           path(nextclade_json),
           path(snpeff),
-          path(alphafold)
+          path(alphafold),
+          path(resistance_json)
     val(ExecutionDir)
 
     output:
@@ -102,6 +103,7 @@ process json_aggregator_rsv_illumina {
                         --alphafold "${alphafold}" \
                         --freyja "${freyja}" \
                         --snpeff ${snpeff} \
+                        --drug_resistance "${resistance_json}" \
                         --mapping "${mapping_json}" \
                         --executiondir ${ExecutionDir}
 
@@ -245,9 +247,10 @@ process json_aggregator_rsv_nanopore {
           path(pangolin_json),
           path(nextclade_json),
           path(snpeff),
-          path(alphafold)
+          path(alphafold),
+          path(resistance_json)
     val(ExecutionDir)
- 
+
     output:
     path("${sampleId}.json")
 
@@ -274,6 +277,7 @@ process json_aggregator_rsv_nanopore {
                         --alphafold "${alphafold}" \
                         --snpeff ${snpeff} \
                         --freyja "${freyja}" \
+                        --drug_resistance "${resistance_json}" \
                         --mapping "${mapping_json}" \
                         --executiondir ${ExecutionDir}
 

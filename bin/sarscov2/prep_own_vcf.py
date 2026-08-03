@@ -7,6 +7,7 @@ wygeneruje vcf-a
 
 import os
 import re
+import shutil
 import subprocess
 import sys
 from typing import Dict
@@ -101,10 +102,12 @@ def align_fasta_muscle(fasta1_file: str, *args, **kwargs) -> Dict:
         if not stan2:
             raise Exception('Podane dodatkowe pliki nie istnieja')
 
-    for plik in fasta1_file:
-        with open('tmp.fasta', 'a+') as f, open(plik, 'r') as f1:
-            for line in f1:
-                f.write(line)
+    # tmp.fasta is opened ONCE in 'w' mode so any stale file left behind by
+    # a previously crashed run is clobbered atomically before we append the
+    with open('tmp.fasta', 'w') as f:
+        for plik in fasta1_file:
+            with open(plik, 'r') as f1:
+                shutil.copyfileobj(f1, f)
 
     polecenie = ('muscle3 -quiet -in tmp.fasta -out tmp_aln.fasta')
 
@@ -177,11 +180,14 @@ def prep_mutation_list(slownik, ref_name, target_name, n=1):
         poprzednia_wartosc = wartosc
 
     # gdyby mutacja byla na ostatnim elemencie
-    if wartosc == 1:
-        try:
-            lista_zakresow.append([start, koniec])
-        except Exception:
-            pass
+    # uwaga: w glownej petli 'koniec' jest ustawiane tylko gdy okno 1-rek
+    # zostaje zamkniete przez pozniejsze 0; jesli alignment konczy sie
+    # w trakcie otwartego okna (np. muscle umieszcza '-' na ostatniej
+    # kolumnie), 'koniec' moze byc nieaktualne z poprzedniego zamknietego
+    # zakresu - dlatego domykamy okno jawnie na len(stany).
+    if len(stany) > 0 and stany[-1] == 1:
+        koniec = len(stany)
+        lista_zakresow.append([start, koniec])
 
     if len(lista_zakresow) == 0:
         # brak mutacji
@@ -265,9 +271,9 @@ if __name__ == '__main__':
     vcf_output = sys.argv[5]
 
     #  uliniawianie sekwencji referencyjnej i "konsensusowej"
-    #  slownik_alignmentu = align_fasta_muscle(sekwencja_referencji, sekwencja_targetu)
+    slownik_alignmentu = align_fasta_muscle(sekwencja_referencji, sekwencja_targetu)
 
-    slownik_alignmentu = align_fasta_nw(sekwencja_referencji, sekwencja_targetu)
+    # slownik_alignmentu = align_fasta_nw(sekwencja_referencji, sekwencja_targetu)
 
     nazwa_referencji = open(sekwencja_referencji).readlines()[0].strip()
     nazwa_targetu = open(sekwencja_targetu).readlines()[0].strip()
