@@ -157,12 +157,10 @@ if [ ! -w "$output" ]; then
     exit 1
 fi
 
-## image_name has a default, hence we only check if image name  is a valid docker image
-tmp_name=`echo ${image_name} | cut -d ":" -f1`
-tmp_tag=`echo ${image_name} | cut -d ":" -f2`
-
-if [ $(docker images | grep "${tmp_name}" | grep "${tmp_tag}" | wc -l) -ne 1 ]; then
-	echo "Provided docker image ${tmp_name}:${tmp_tag} does not exist. Provide valid image name"
+## image_name has a default; require an exact local image reference (no prefix/suffix fuzzy match).
+## `docker image inspect` resolves the full name:tag and fails if that exact reference is missing.
+if ! docker image inspect "${image_name}" >/dev/null 2>&1; then
+	echo "Provided docker image ${image_name} does not exist. Provide valid image name"
 	exit 1
 fi
 
