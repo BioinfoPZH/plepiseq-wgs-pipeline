@@ -1138,9 +1138,15 @@ and for single end reads:
 
 --machine - Sequencing platform. Allowed values: Nanopore, Illumina.
 
---primers_id - Name of the amplicon scheme used to amplify genetic material. Allowed values:. EQA2023.SARS1, EQA2023.SARS2, EQA2024.V4_1, EQA2024.V5_3, V1, V1200, V3, V4, V4.1, V5.3.2, VarSkip2 VarSkip2b VarSkip1a VarSkip_long_1a (for SARS-CoV-2); V0, V1 (for RSV). For Influenza, this parameter is ignored.
+--primers_id - Name of the amplicon scheme used to amplify genetic material. This argument is **required for every species, including Influenza**; the wrapper validates it against the list for the selected species and aborts on any other value. Allowed values:
 
---projectDir Directory with the project repository.
+- SARS-CoV-2: Artic_V1, Artic_V2, Artic_V3, Artic_V4, Artic_V4.1, Artic_V5.3.2, Artic_V5.4.2, Midnight_1200nt, VarSkip_V1a, VarSkip_V1a_long, VarSkip_V2, VarSkip_V2b, EQA2023.SARS1, EQA2023.SARS2, EQA2024.V4_1, EQA2024.V4_1.nanopore, EQA2024.V5_3, EQA2026.SARS1, EQA2026.SARS2
+- RSV: RSV_WHO-2015, RSV_Artic_V1, RSV_EQA20206.illumina, RSV_EQA20206.nanopore
+- Influenza: UniRef — a placeholder value, because the subtype-specific primers are selected automatically once the subtype is detected
+
+The authoritative lists are the SARSCOV2_PRIMERS, RSV_PRIMERS and INFLUENZA_PRIMERS arrays at the top of run_nf_pipeline_viral.sh.
+
+--projectDir - Directory with the project repository. There is no default, and the wrapper does not currently check that it was supplied, so always pass it explicitly (see TODO.md).
 
 --external_databases_path - Directory with all databases used by the program. Default: "/mnt/raid/external_databases"
 
@@ -1148,19 +1154,19 @@ and for single end reads:
 
 --manta_image - Name of the Docker image with the Manta program. Default: plepiseq-wgs-pipeline-manta:latest
 
---medaka_image - Name of the Docker image with the Medaka program. Default: ontresearch/medaka:sha447c70a639b8bcf17dc49b51e74dfcde6474837b-amd64)
+--medaka_image - Name of the Docker image with the Medaka program. Default: ontresearch/medaka:sha447c70a639b8bcf17dc49b51e74dfcde6474837b-amd64
 
---alphafold_image - Name of the Docker image with the AlphaFold program. Default: alphafold2:latest)
+--alphafold_image - Name of the Docker image with the AlphaFold program. Default: plepiseq-wgs-pipeline-alphafold:latest
 
 ### Optional arguments
 
---adapters - Adapters used during Illumina-based sequencing. Default: TruSeq3-PE-2, as we expect that most users will use TruSeq3 adapters. The list of available adapters is: NexteraPE-PE, TruSeq2-PE, TruSeq2-SE, TruSeq3-PE-2, TruSeq3-PE, TruSeq3-SE. FASTA files with adapter sequences are located in /data/common/adapters.
+--adapters_id - Adapters used during Illumina-based sequencing. Default: TruSeq3-PE-2, as we expect that most users will use TruSeq3 adapters. The list of available adapters is: NexteraPE-PE, TruSeq2-PE, TruSeq2-SE, TruSeq3-PE-2, TruSeq3-PE, TruSeq3-SE. FASTA files with adapter sequences are located in /data/common/adapters.
 
 --max_number_for_SV - Maximum number of reads used to predict structural variants (SVs) with Manta. Default value depends on species – 200_000 for SARS-CoV-2, 100_000 for RSV and 10_000 for Influenza
 
 --min_median_for_SV - Minimum median coverage for a segment required for SVs calling with Manta. Deafult: 50
 
---variant - Name of the expected influenza subtype (e.g. H5N1). To auto-detect subtype this options should be se to “UNK”. Default value “UNK”. This parameter is only valid for Influenza
+--variant - Name of the expected influenza subtype (e.g. H5N1). To auto-detect subtype this options should be se to “UNK”. This parameter is only valid for Influenza, and it is only for Influenza that the wrapper defaults it to “UNK”; for SARS-CoV-2 and RSV it is left empty and unused.
 
 --min_number_of_reads Minimum number of reads in a FASTQ file required for the program to execute. Default is 1.
 
@@ -1170,23 +1176,23 @@ and for single end reads:
 
 --quality_initial - Minimum quality of bases at the 5' and 3' ends of reads not trimmed with Trimmomatic. Defaults: 5 for Illumina, 2 for Nanopore..
 
---length - Minimal length of a read after quality trimming for it to be used in the analysis. Default: 90 for Illumina, 49% of the initial read length for Nanopore.
+--length - Minimal length of a read after quality trimming for it to be used in the analysis. Defaults: 90 bases for Illumina; for Nanopore the value is a fraction (0.49) of the **expected amplicon or segment length**, not of the read length.
 
---max_depth - Maximum expected coverage at each position after coverage equalization procedure. Default: 600.
+--max_depth - Maximum expected coverage at each position after coverage equalization procedure. Defaults: 1000 for Illumina (all species); for Nanopore 3000 for SARS-CoV-2 and RSV, 2000 for Influenza.
 
---min_cov - Minimum coverage at a position required to identify SNPs/INDELs. Defaults: 20 for Illumina, 50 for Nanopore.
+--min_cov - Minimum coverage at a position required to identify SNPs/INDELs. The default depends on the **species**, not the platform: 20 for SARS-CoV-2 (RIVM threshold), 10 for Influenza and RSV (Pasteur threshold).
 
---mask - Maximum coverage value below which regions are masked with 'N' due to low coverage. Defaults: 20 for Illumina, 50 for Nanopore.
+--mask - Maximum coverage value below which regions are masked with 'N' due to low coverage. The default depends on the **species**, not the platform: 20 for SARS-CoV-2, 10 for Influenza and RSV.
 
 --quality_snp - Minimum nucleotide quality in a read to be considered during SNP/INDEL/SV calling. Defaults: 15 for Illumina, 5 for Nanopore.
 
 --pval - p-value threshold to determine if a variant is significant for Illumina data. Default: 0.05. Only valid for Illumina. Two equivalent parameters for Nanopore data are first_round_pval and second_round_pval
 
---lower_ambig - Minimum ratio of reads carrying a minor allele at a given position above which ambiguous symbol can be introduced . Default: 0.45.
+--lower_ambig - Minimum ratio of reads carrying a minor allele at a given position above which ambiguous symbol can be introduced . Defaults: 0.45 for SARS-CoV-2, 0.40 for Influenza and RSV, which use a wider ambiguity window.
 
---upper_ambig - Maximum ratio of reads carrying a minor allele at a given position below which ambiguous symbol can be introduced. Default: 0.55
+--upper_ambig - Maximum ratio of reads carrying a minor allele at a given position below which ambiguous symbol can be introduced. Defaults: 0.55 for SARS-CoV-2, 0.60 for Influenza and RSV.
 
---window_size - Window size used during coverage equalization. Default: 50.
+--window_size - Window size used during coverage equalization. Default: 50, except RSV on Nanopore, which uses 100.
 
 --min_mapq - Minimum mapping quality of a read to a reference genome to be used by the program. Default: 30.
 
@@ -1198,13 +1204,13 @@ and for single end reads:
 
 --extra_bed_offset - Number of bases by which a low-quality read can additionally exceed the primer boundary. Nanopore-specific; default: 10.
 
---medaka_model - Medaka model. Nanopore specific parameter. Default: 941_min_sup_variant_g507".
+--medaka_model - Medaka model used for the first Medaka round. Nanopore specific parameter. Default: r941_min_sup_variant_g507 (flow cell v9.4.1). The second round uses r941_min_sup_g507.
 
---medaka_chunk_len - Medaka chunk length. Nanopore specific parameter. Default: 5_000 (for SARS-CoV_2 and RSV), 1_000 (for Influenza).
+--medaka_chunk_len - Medaka chunk length. Nanopore specific parameter. Defaults: 5_000 for SARS-CoV-2, 10_000 for RSV, 800 for Influenza.
 
---medaka_chunk_overlap - Medaka chunk overlap. Nanopore specific parameter. Default: 4_000 (for SARS-CoV_2 and RSV), 500 (for Influenza).
+--medaka_chunk_overlap - Medaka chunk overlap. Nanopore specific parameter. Defaults: 4_000 for SARS-CoV-2, 8_000 for RSV, 400 for Influenza.
 
---first_round_pval - p-value to determine if a variant is significant during initial genome prediction. Nanopore-specific parameter. Default: 0.25.
+--first_round_pval - p-value to determine if a variant is significant during initial genome prediction. Nanopore-specific parameter. Defaults: 0.05 for SARS-CoV-2 and RSV, 0.25 for Influenza.
 
 --second_round_pval - p-value to determine if a variant is significant during genome fine-tuning. Nanopore-specific parameter. Default: 0.05.
 
@@ -1215,6 +1221,12 @@ and for single end reads:
 --profile- Name of the profile specified in the Nextflow configuration file (Section 2.1.5).Allowed values: “local” and “slurm”. Default “local”
 
 --no-alphafold – Flag; provide this argument to skip AlphaFold calculations.
+
+--debug – Flag; run Nextflow with additional reporting (-with-trace, -with-dag, -with-report, written to ./reports) and with -resume. Without it the pipeline still writes a trace file.
+
+--all – Flag; print every parameter accepted by the wrapper, including the tuning parameters described above, and exit.
+
+-h, --help – Flag; print a short usage summary and exit.
 
 ## 6.2. Running the bacterial pipeline
 
