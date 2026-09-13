@@ -51,7 +51,9 @@ python_tests/__pycache__
 # pycache
 bin/update/__pycache__/
 bin/update/utils/__pycache__/
+bin/bacteria/__pycache__/
 
-bin/eqa_utils/ # temporary directory for eqa utils
+# temporary directory for eqa utils
+bin/eqa_utils/
 tmp/
 
