@@ -9,7 +9,7 @@ The document provides technical documentation for the bioinformatics processing 
 > **Status of this document.** This text was written for the pipeline as it
 > stood in **February 2026** and has not yet been fully revised for release
 > **1.8.0**. Chapters 1, 2 and 3 have been corrected, as has the viral
-> parameter reference in 6.1; chapters 4, 5, 7 and the bacterial half of 6 may
+> parameter reference in chapter 6; chapters 4, 5 and 7 may
 > still describe earlier behaviour. Where this document disagrees with
 > `README.md`, with `CHANGELOG.md`, or with the `--help` output of the wrapper
 > scripts, **the code is authoritative**. Known defects are tracked in `TODO.md`.
@@ -1251,13 +1251,17 @@ Like viral counterpart there are two types of parameters accepted by shell wrapp
 
 --prokka_image - Name (including tag) of the Docker image with the Prokka annotation program. Default: staphb/prokka:latest.
 
+--medaka_image - Name (including tag) of the Docker image with the Medaka program, used to polish Nanopore assemblies. Default: ontresearch/medaka:sha447c70a639b8bcf17dc49b51e74dfcde6474837b-amd64. Since release 1.8.0 the bacterial pipeline uses this external pinned image rather than building Medaka into the bacterial image.
+
 --alphafold_image - Name (including tag) of the Docker image containing the AlphaFold program for 3D structure prediction. Default: plepiseq-wgs-pipeline-alphafold:latest.
 
 ### Optional arguments
 
 All remaining parameters are optional and have defaults chosen to provide sensible quality control and biologically meaningful results for typical bacterial WGS data. In most routine use cases, these options do not need to be modified.
 
---genus - Genus of the bacterium that underwent sequencing. Accepted values: Salmonella, Escherichia, Campylobacter. If omitted, the pipeline attempts to detect the genus automatically based on read classification (Kraken2).
+--genus - Genus of the bacterium that underwent sequencing. Accepted values: Salmonella, Escherichia, Campylobacter. If omitted, the pipeline attempts to detect the genus automatically. Detection combines more than one classifier, and the combination differs by platform: for Illumina data a sample is treated as contaminated or unidentifiable only when Kraken2 **and** MetaPhlAn both assign fewer than main_genus_value percent of reads to the leading genus **and** KmerFinder coverage falls below kmerfinder_coverage; for Nanopore data MetaPhlAn is not used and only Kraken2 and KmerFinder are considered. See modules/bacterial/get_species_bacteria.nf.
+
+Note that some genus-specific analyses exist for organisms this option does not accept. Legionella MLST and AMRFinder support was added provisionally in release 1.8.0, but neither this option nor the run_pipeline.sh dispatcher accepts "Legionella", so that path is reachable only through automatic detection.
 
 --results_dir - Output directory for pipeline results. Default: ./results.
 
@@ -1299,7 +1303,11 @@ Defaults: 10 for Illumina; 5 for Nanopore.
 
 --no-alphafold – Flag, Skip calculation of 3D protein models with AlphaFold.
 
+--debug – Flag; run Nextflow with additional reporting (-with-trace, -with-dag, -with-report, written to ./reports) and with -resume. Without it the pipeline still writes a trace file. Added in release 1.8.0.
+
 --all- Display the full help message (list of all parameters) and exit.
+
+-h, --help – Flag; display a short usage summary and exit.
 
 # 7. Modules
 
