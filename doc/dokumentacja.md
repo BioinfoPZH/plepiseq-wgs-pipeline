@@ -433,7 +433,11 @@ GPU is not required since version 1.2.0 when executing pipeline with “--no-alp
 
 ## 3.3. Memory
 
-The most memory-intensive module is Kraken2, which requires loading its entire database into memory. The size of this database determines the overall memory requirements. By default, we utilize the standard database, which is approximately 80 GiB in size. Additionally, extra memory is needed to support other processes and the operating system, resulting in a total memory requirement of at least 82 GiB per sample.
+The most memory-intensive module is Kraken2, which requires loading its entire database into memory. The size of this database determines the overall memory requirements. By default, we utilize the standard database. As of release 1.8.0 the `kraken2` processes declare `memory '120 GB'` (raised from 100 GB to avoid SLURM out-of-memory failures as the database grows), and the bacterial contamination analysis declares the same. Because Nextflow will not schedule a process whose memory request exceeds what the executor has available, **a host with less than 120 GB of RAM cannot run these modules at all under the `local` profile.** Allowing for the operating system and for other concurrently running modules, plan for at least 128 GB per concurrently analysed sample.
+
+Two other modules are worth noting when sizing a machine: MetaPhlAn on Illumina data requests 60 GB (raised from 40 GB in 1.8.0), and `alphafold_slurm` requests 250 GB, which is the single largest request in either pipeline. The latter applies only under the `slurm` profile, where it is a request to the scheduler rather than to a single host.
+
+The authoritative figures are the `memory` directives in the module files; grep for them with `grep -rn '^\s*memory' modules/`.
 
 Memory requirements can be significantly reduced by selecting a smaller database, such as one that contains only specific branches of the Tree of Life. A list of available databases, along with their contents and sizes, can be found here: https://benlangmead.github.io/aws-indexes/k2T.
 
@@ -447,20 +451,26 @@ Some modules perform significant number of I/O operations, thus pipeline can def
 
 The following table summarizes the storage requirements of all the images required by the pipeline.
 
+Sizes below are as reported by `docker images` for the 1.8.0 tags.
+
 | Image name | Size |
 | --- | --- |
-| plepiseq-wgs-pipeline-viral | ~2.8 GiB |
-| plepiseq-wgs-pipeline-updater | ~ 0.25 GiB |
-| plepiseq-wgs-pipeline-manta | ~ 1.7 GiB |
-| ontresearch/medaka | ~ 9 GiB |
-| plepiseq-wgs-pipeline-alphafold | ~ 22 GiB |
-| staphb/prokka | ~ 2.5 Gb |
-| plepiseq-wgs-pipeline-bacterial | ~ 26 Gb |
-| Total | ~ 55 GiB |
+| plepiseq-wgs-pipeline-viral | 2.1 GB |
+| plepiseq-wgs-pipeline-updater | 1.8 GB |
+| plepiseq-wgs-pipeline-manta | 1.7 GB |
+| ontresearch/medaka (pinned tag) | 9.1 GB |
+| plepiseq-wgs-pipeline-alphafold | 21.8 GB |
+| staphb/prokka | 2.5 GB |
+| plepiseq-wgs-pipeline-bacterial | 13.6 GB |
+| Total | ~52.7 GB |
+
+Note that the updater image is considerably larger than in earlier releases (it was around 0.25 GiB), while the bacterial image is roughly half its previous size. Docker reports decimal gigabytes, so these figures are GB rather than GiB.
 
 ### Databases sizes:
 
-The pipeline requires access to several databases. Their total size is close to **~3.1 TB,** mainly due to large size of multiple databases required by the Alphafold2 program.
+The pipeline requires access to several databases. The table below totals **~230 GB** and covers everything fetched by `update_external_databases.sh` **except AlphaFold2**, which is listed separately because of its size.
+
+AlphaFold2 is the reason the 3.1 TB figure is sometimes quoted: that is what DeepMind's full download comes to. This pipeline models only a small, fixed set of proteins, so the large sequence databases (`bfd` and similar) can be omitted, and only `uniref50/`, `pdb_mmcif/`, `pdb_seqres/`, `uniprot/`, `pdb70/` and `params/` are strictly required — a few hundred GB rather than several TB. See section 2.2 for the directory layout and note that only `uniref50` and `uniprot` are refreshed by the update script. Plan total storage from the sum of the table below, the AlphaFold subset you choose to keep, and roughly 53 GB of Docker images.
 
 | Database           | Size         |
 
