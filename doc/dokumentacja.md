@@ -6,6 +6,20 @@ Michał Kadlof, Michał Łaźniewski
 
 The document provides technical documentation for the bioinformatics processing protocols (also known as pipelines) developed in the PlEpiSeq project. These protocols are designed for the automatic analysis of SARS-CoV-2, influenza, and RSV viruses and Salmonella, Escherichia and Campylobacter genera sequenced using Illumina and Nanopore technologies. It covers the architecture, installation and execution procedures, the content of the Nextflow modules, and details of the validation tests.
 
+> **Status of this document.** This text was written for the pipeline as it
+> stood in **February 2026** and has not yet been fully revised for release
+> **1.8.0**. Chapters 1, 2 and 5 have been corrected; chapters 3, 4, 6 and 7 may
+> still describe earlier behaviour. Where this document disagrees with
+> `README.md`, with `CHANGELOG.md`, or with the `--help` output of the wrapper
+> scripts, **the code is authoritative**. Known defects are tracked in `TODO.md`.
+>
+> Notable features added after this document was written, and therefore missing
+> from it: cuteSV structural-variant calling for Nanopore SARS-CoV-2 and RSV;
+> RSV F-protein resistance analysis (nirsevimab, palivizumab, clesrovimab);
+> bacterial pHierCC/HierCC assignment; the EQA2026 primer schemes and the new
+> RSV-A/RSV-B references; the `run_pipeline.sh` dispatcher; and the `--debug`
+> flag on both wrappers.
+
 ## Table of Contents
 
 - [1. Conventions in this document](#1-conventions-in-this-document)
@@ -149,41 +163,41 @@ The pipeline was tested on nextflow version 24.10.3.5933, 24.04.4.5917, and 24.1
 5.  Nextflow config (<https://www.nextflow.io/docs/latest/config.html>). The config defines which nextflow executors are available, and adjust their default parameters to work best on a given machine. Below is the sample config modifying two in-build nexflow executors *slurm* and *local*. If put in ~/.nextflow/config this config will be visible for nexflow regardless where *nextflow* command is executed.
 
 ```groovy
-# definition of profiles accessible to nextflow
+// definition of profiles accessible to nextflow
 profiles {
 local {
-# creates a profile called "local".
-process.executor = 'local' # name of the executor used by this profile
-process.errorStrategy = 'retry' # all modules in the pipeline executed using this profile are resubmitted if they fail
-process.maxRetries = 2 # number of times nexflow retries to execute a module
+// creates a profile called "local".
+process.executor = 'local' // name of the executor used by this profile
+process.errorStrategy = 'retry' // all modules in the pipeline executed using this profile are resubmitted if they fail
+process.maxRetries = 2 // number of times nexflow retries to execute a module
 }
 slurm {
-# create a profile called "slurm". It uses nextflow's "slurm" executor.
+// create a profile called "slurm". It uses nextflow's "slurm" executor.
 process.executor = 'slurm'
-process.clusterOptions = '--nodelist=HOSTNAME1,HOSTNAME2' # sbatch option list of node(s) available to slurm executor
+process.clusterOptions = '--nodelist=HOSTNAME1,HOSTNAME2' // sbatch option list of node(s) available to slurm executor
 process.errorStrategy = 'retry'
 process.maxRetries = 2
 }
 }
 executor {
-# Here we modify default behavior of the executors (as named in a previous section)
+// Here we modify default behavior of the executors (as named in a previous section)
 $local {
-cpus = X # number of CPUs allocated to all processes e.g. 100
-memory = 'Y GB' # amount of RAM allocated to all processes e.g. '5 Gb'
+cpus = X // number of CPUs allocated to all processes e.g. 100
+memory = 'Y GB' // amount of RAM allocated to all processes e.g. '5 Gb'
 }
 $slurm {
-queueSize = Z # amount of processes allowed in slurm queue
+queueSize = Z // amount of processes allowed in slurm queue
 }
 }
-# "Global" modifiers
-docker.enabled = true # allow execution of processes inside docker containers. **MUST BE** true
-params.enterobase_api_token = 'SECRET_KEY' # a valid Enterobase API key required by some modules. VALID key **MUST BE** set when analyzing bacterial WGS data
+// "Global" modifiers
+docker.enabled = true // allow execution of processes inside docker containers. **MUST BE** true
+params.enterobase_api_token = 'SECRET_KEY' // a valid Enterobase API key required by some modules. VALID key **MUST BE** set when analyzing bacterial WGS data
 ```
 
 6.  Repository with the pipeline. To download latest version repository type
 
 ```bash
-git clone --depth 1 https://github.com/mkadlof/plepiseq-wgs-pipeline.git
+git clone --depth 1 https://github.com/BioinfoPZH/plepiseq-wgs-pipeline.git
 ```
 
 7.  **Specific** version of Alphafold2 repository. Download Alphafold2 and switch to a predefined commit.
@@ -200,13 +214,20 @@ We pin to this revision because later commits replaced several scipy-based funct
 
 ## 2.2. Installation
 
-1)  In the directory with main repository (2.1.6) in the bin/update directory, create a file called “enterobase_api.txt”. The file must contain a valid API key used to connect to the Enterobase database (as specified in the nextflow config). This file is require to download/update external databases .
+1)  In the directory with the main repository (2.1.6), create a credentials file based on the `sample_credentials.txt` template. It holds the API keys used to connect to the EnteroBase and PubMLST services, and its path is passed to `update_external_databases.sh` with `--credentials_file`. The script mounts it into the updater container as `/home/update/credentials.txt`.
 
-To obtain a valid token please consult <https://enterobase.readthedocs.io/en/latest/api/about-the-api.html>
+```bash
+cp sample_credentials.txt credentials.txt
+# then edit credentials.txt and fill in the keys
+```
 
-The key is valid for 6 months, once the key id becomes obsolete you must edit the “enterobase_api.txt” file and rebuild container plepiseq-wgs-pipeline_updater:latest image
+To obtain a valid EnteroBase token please consult <https://enterobase.readthedocs.io/en/latest/api/about-the-api.html>
 
-The key is required to update some of the bacterial databases, hence you can still update all databases required by the viral pipeline
+The EnteroBase key is valid for 6 months. When it expires, edit the credentials file — no container rebuild is needed, because the file is mounted at run time rather than baked into the image. Keep the file outside version control; `bin/update/credentials.txt` is listed in `.gitignore`.
+
+Credentials are required for the `enterobase`, `pubmlst`, `cgmlst`, `mlst` and `all` database targets. Databases used only by the viral pipeline can be updated without them.
+
+Note that a valid `params.enterobase_api_token` in the nextflow config is a separate requirement: the credentials file is used by the database updater, whereas the config token is used at run time by the bacterial pHierCC module.
 
 2)  Enter the repository and build all docker images used by the pipeline. In the following chapters we **assume the images are named as in the example below.** These names are also defaults in most downstream/helper scripts.
 
@@ -214,8 +235,8 @@ The key is required to update some of the bacterial databases, hence you can sti
 cd plepiseq-wgs-pipeline
 docker build --target main -f docker/Dockerfile-viral -t plepiseq-wgs-pipeline-viral:latest .
 docker build --target manta -f docker/Dockerfile-manta -t plepiseq-wgs-pipeline-manta:latest .
-docker build --target updater -f docker/Dockerfile-main -t plepiseq-wgs-pipeline-updater:latest .
-docker build -f docker/Dockerfile-bacteria -t plepiseq-wgs-pipeline-bacterial:latest .
+docker build --target updater -f docker/Dockerfile-viral -t plepiseq-wgs-pipeline-updater:latest .
+docker build -f docker/Dockerfile-bacterial -t plepiseq-wgs-pipeline-bacterial:latest .
 ```
 
 You may add --no-cache flag to docker build command to avoid caching effects.
@@ -233,7 +254,7 @@ You may check what images are available on your server after by typing docker im
 To better track changes to the versions of our pipeline one can build an image using following command:
 
 ```bash
-docker build -f docker/Dockerfile-bacteria -t plepiseq-wgs-pipeline-bacterial:latest -t plepiseq-wgs-pipeline-bacterial:$(cat VERSION) .
+docker build -f docker/Dockerfile-bacterial -t plepiseq-wgs-pipeline-bacterial:latest -t plepiseq-wgs-pipeline-bacterial:$(cat VERSION) .
 ```
 
 3)  Got to the Alphafold2 repository, **replace** the original Dockerfile (located in the docker/ subdirectory) with the dockerfile provided by our repository (file is also called Dockerfile and is located in subdirectory called plepiseq-wgs-pipeline/docker/). This change is required for the alphafold2 program to work within the nextflow framework.
@@ -329,9 +350,9 @@ As of version 1.3.0 program allows only .fastq.gz extension, do not use fq.gz.
 
 3)  If user did not follow naming convention for docker images as provided in sections 2.2.1 and 2.2.2 following parameters must also be set:
 
-1.  main_image (name of an image used instead of plepiseq-wgs-pipeline_main:latest)
+1.  main_image (name of an image used instead of plepiseq-wgs-pipeline-viral:latest)
 
-2.  manta_image (name of an image used instead of plepiseq-wgs-pipeline_manta:latest)
+2.  manta_image (name of an image used instead of plepiseq-wgs-pipeline-manta:latest)
 
 3.  medaka_image (name of an image used instead of ontresearch/medaka: sha447c70a639b8bcf17dc49b51e74dfcde6474837b-amd64)
 
@@ -428,9 +449,9 @@ The following table summarizes the storage requirements of all the images requir
 
 | Image name | Size |
 | --- | --- |
-| plepiseq-wgs-pipeline_main | ~2.8 GiB |
-| plepiseq-wgs-pipeline_updater | ~ 0.25 GiB |
-| plepiseq-wgs-pipeline_manta | ~ 1.7 GiB |
+| plepiseq-wgs-pipeline-viral | ~2.8 GiB |
+| plepiseq-wgs-pipeline-updater | ~ 0.25 GiB |
+| plepiseq-wgs-pipeline-manta | ~ 1.7 GiB |
 | ontresearch/medaka | ~ 9 GiB |
 | plepiseq-wgs-pipeline-alphafold | ~ 22 GiB |
 | staphb/prokka | ~ 2.5 Gb |
@@ -620,7 +641,7 @@ cd plepiseq-wgs-pipeline
 git rev-parse HEAD
 ```
 
-Compare the commit identifier with the Latest commit available on github https://github.com/mkadlof/plepiseq-wgs-pipeline. If your local repository is outdated update it by typing
+Compare the commit identifier with the Latest commit available on github https://github.com/BioinfoPZH/plepiseq-wgs-pipeline. If your local repository is outdated update it by typing
 
 ```bash
 git pull
@@ -630,7 +651,7 @@ Remove the old images, and rebuild them, this procedure is identical to performi
 
 ```bash
 docker image rm plepiseq-wgs-pipeline-viral:latest
-docker build --target main -f Dockerfile-main -t plepiseq-wgs-pipeline-viral:latest .
+docker build --target main -f docker/Dockerfile-viral -t plepiseq-wgs-pipeline-viral:latest .
 ```
 
 Updating other Docker images created in Section 2.2.1 is typically unnecessary, as they do not include internal data.
@@ -1113,9 +1134,9 @@ and for single end reads:
 
 --external_databases_path - Directory with all databases used by the program. Default: "/mnt/raid/external_databases"
 
---main_image - Name of the Docker image with the main program. Default: plepiseq-wgs-pipeline_main:latest
+--main_image - Name of the Docker image with the main program. Default: plepiseq-wgs-pipeline-viral:latest
 
---manta_image - Name of the Docker image with the Manta program. Default: plepiseq-wgs-pipeline_manta:latest
+--manta_image - Name of the Docker image with the Manta program. Default: plepiseq-wgs-pipeline-manta:latest
 
 --medaka_image - Name of the Docker image with the Medaka program. Default: ontresearch/medaka:sha447c70a639b8bcf17dc49b51e74dfcde6474837b-amd64)
 
@@ -1353,7 +1374,7 @@ These options specify a smaller sequence database (uniref50_viral.fasta), as a t
 
 ### Brief description.
 
-This module runs the bwa program (included in the plepiseq-wgs-pipeline_main:latest docker image, as described in Section 2.2.1) to map the reads obtained with the Illumina sequencing platform to the preselected reference genome of a species.
+This module runs the bwa program (included in the plepiseq-wgs-pipeline-viral:latest docker image, as described in Section 2.2.1) to map the reads obtained with the Illumina sequencing platform to the preselected reference genome of a species.
 
 ### Detailed Comments
 
@@ -1423,7 +1444,7 @@ in bwa mem “-T {params.min_mapq} ” options assures no alignment with score l
 
 ### Brief description.
 
-This module runs the custom python script called predict_coinfection_illumina.py (included in the plepiseq-wgs-pipeline_main:latest docker image) that is used to compare empirical distribution of non-reference allels in a sample to the same distribution observed in the “reference” samples, which were labeled as “coinfected” in European Quality Assessment tests.
+This module runs the custom python script called predict_coinfection_illumina.py (included in the plepiseq-wgs-pipeline-viral:latest docker image) that is used to compare empirical distribution of non-reference allels in a sample to the same distribution observed in the “reference” samples, which were labeled as “coinfected” in European Quality Assessment tests.
 
 ### Detailed Comments
 
@@ -2814,7 +2835,7 @@ The module generates a VCF file based on FASTA files.
 
 # 8. JSON output
 
-The formal definition of both bacterial and viral pipeline in form of a JSON schema can be found at <https://github.com/michallaz/plepiseq_json> in main_output_schema.json file.
+The formal definition of both bacterial and viral pipeline in form of a JSON schema can be found at <https://github.com/BioinfoPZH/plepiseq_json> in main_output_schema.json file.
 
 # 9. Appendix A Primers
 
