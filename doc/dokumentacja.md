@@ -8,7 +8,8 @@ The document provides technical documentation for the bioinformatics processing 
 
 > **Status of this document.** This text was written for the pipeline as it
 > stood in **February 2026** and has not yet been fully revised for release
-> **1.8.0**. Chapters 1, 2 and 5 have been corrected; chapters 3, 4, 6 and 7 may
+> **1.8.0**. Chapters 1, 2 and 3 have been corrected, as has the viral
+> parameter reference in 6.1; chapters 4, 5, 7 and the bacterial half of 6 may
 > still describe earlier behaviour. Where this document disagrees with
 > `README.md`, with `CHANGELOG.md`, or with the `--help` output of the wrapper
 > scripts, **the code is authoritative**. Known defects are tracked in `TODO.md`.
