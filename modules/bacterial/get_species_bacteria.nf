@@ -198,7 +198,7 @@ else
   KRAKEN_GENUS_LEVEL=`cat report_kraken2.txt | grep -w "S" | sort -rnk1 | head -1 | awk '{print int(\$1)}'`
   KMERFINDER_COVERAGE=`cat results.txt | head -2 |  tail -1 | cut -f9 | awk '{print int (\$1)}'`
 
-  if [[ \${KRAKEN_GENUS_LEVEL} -lt $params.main_genus_value} && \${KMERFINDER_COVERAGE} -lt ${params.kmerfinder_coverage} ]]; then
+  if [[ \${KRAKEN_GENUS_LEVEL} -lt ${params.main_genus_value} && \${KMERFINDER_COVERAGE} -lt ${params.kmerfinder_coverage} ]]; then
     # kraken2 zwraca mniej nizd 50% odczytow nalezacych do glownego gatunku
     # kmerfinder zwraca pokrycie pierwszego gatunku ponizej 20
     QC_status_contaminations="nie"
@@ -207,7 +207,7 @@ else
     echo -e "The sample is contaminated or lacks sufficient number of reads" >> predicted_genus_and_species.txt
 
     if [ "${params.lan}" == "pl" ]; then
-      ERROR_MSG='Ta próbka nie przeszła podstawowej kontroli jakości w tym module. Liczba odczytów przypisana do dominującego rodzaju to \${KRAKEN_GENUS_LEVEL} według programu kraken2, a przewidywane pokrycie głównego gatunku według programu kmerfinder wynosi \${KMERFINDER_COVERAGE}'
+      ERROR_MSG="Ta próbka nie przeszła podstawowej kontroli jakości w tym module. Liczba odczytów przypisana do dominującego rodzaju to \${KRAKEN_GENUS_LEVEL} według programu kraken2, a przewidywane pokrycie głównego gatunku według programu kmerfinder wynosi \${KMERFINDER_COVERAGE}"
     else
       ERROR_MSG=`echo This sample fails basic QC for this module. Number of reads associated with a dominant genus is \${KRAKEN_GENUS_LEVEL} according to kraken2 and predicted coverage for the main species according to kmerfinder is \${KMERFINDER_COVERAGE}`
     fi    

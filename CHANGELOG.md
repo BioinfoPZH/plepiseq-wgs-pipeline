@@ -1,6 +1,11 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.8.1] - 2026-09-13
+### Fixed
+- Bacterial Nanopore species detection failing to properly evaluate kraken2 results
+- Correct quotation in error message
+
 ## [1.8.0] - 2026-08-03
 ### Added
 - Bacterial pHierCC / HierCC assignment via EnteroBase, PubMLST, and local `plepiseq-cluster` data, with contract-shaped fallbacks so Nextflow can continue on QC/API/DB failures.
