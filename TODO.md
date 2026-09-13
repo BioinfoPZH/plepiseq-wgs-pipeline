@@ -9,58 +9,7 @@ Ordered roughly by severity.
 
 ---
 
-## 1. Malformed Groovy interpolation silently disables the bacterial Nanopore contamination check
-
-**File:** `modules/bacterial/get_species_bacteria.nf:201`
-
-The Nanopore branch of the species/contamination check is missing an opening
-brace on its parameter reference:
-
-```groovy
-// line 201, Nanopore  -- note `$params.main_genus_value}`
-if [[ \${KRAKEN_GENUS_LEVEL} -lt $params.main_genus_value} && \${KMERFINDER_COVERAGE} -lt ${params.kmerfinder_coverage} ]]; then
-```
-
-The Illumina equivalent at line 49 is written correctly with
-`${params.main_genus_value}`.
-
-Groovy interpolates the dotted property without braces and leaves the `}` as a
-literal, so the emitted `.command.sh` contains a stray brace:
-
-```bash
-if [[ ${KRAKEN_GENUS_LEVEL} -lt 50} && ... ]]; then
-```
-
-Verified by running a minimal Nextflow probe. Bash reports:
-
-```
-.command.sh: line 3: [[: 50}: syntax error: invalid arithmetic operator (error token is "}")
-```
-
-**Why this is severe rather than merely broken:** `[[ ... ]]` returns non-zero
-on the syntax error, so the condition evaluates as *false* and the `else` branch
-is taken. The process still exits **0**, so Nextflow treats the task as
-successful and neither fails nor retries. The only trace is one line in
-`.command.err`, which nothing reads.
-
-The practical consequence is that on the bacterial **Nanopore** path the
-contamination / unidentifiable-species check never fires. A sample where Kraken2
-assigns fewer than `main_genus_value` percent of reads to the main genus *and*
-KmerFinder coverage is below `kmerfinder_coverage` should be flagged
-`QC_status_contaminations="nie"` with `FINALE_SPECIES="unknown"`. Instead it is
-passed downstream as a clean, confidently identified sample. Illumina runs are
-unaffected.
-
-**Fix:** `$params.main_genus_value}` -> `${params.main_genus_value}`. Worth
-grepping the whole tree for the same shape, since it is invisible in review:
-
-```bash
-grep -rn '\$params\.[a-z_]*}' modules/
-```
-
----
-
-## 2. `--projectDir` is unvalidated but has no default
+## 1. `--projectDir` is unvalidated but has no default
 
 **Files:** `run_nf_pipeline_viral.sh` (50, 432, 577), `run_nf_pipeline_bacterial.sh` (13, 326, 391)
 
@@ -93,7 +42,7 @@ as `SCRIPT_DIR`, making the flag unnecessary in the common case.
 
 ---
 
-## 3. Unset variables are passed as bare flags and become boolean `true`
+## 2. Unset variables are passed as bare flags and become boolean `true`
 
 **Files:** `run_nf_pipeline_viral.sh` (577-620)
 
@@ -138,7 +87,7 @@ worthwhile hardening step regardless.
 
 ---
 
-## 4. `params.variant` is used but never declared
+## 3. `params.variant` is used but never declared
 
 **Files:** `nf_pipeline_viral.nf`, `modules/infl/detect_subtype.nf:61`, `modules/infl/detect_subtype_nanopore.nf:64`
 
@@ -152,7 +101,7 @@ with an unresolved-property error.
 
 ---
 
-## 5. `params.lan` is hardcoded and cannot be selected
+## 4. `params.lan` is hardcoded and cannot be selected
 
 **Files:** `nf_pipeline_viral.nf:88`, `nf_pipeline_bacterial.nf:55`, 38 module files
 
@@ -167,7 +116,7 @@ actually branch on, and forward it like any other parameter.
 
 ---
 
-## 6. The Enterobase API token is written to the work directory in plaintext
+## 5. The Enterobase API token is written to the work directory in plaintext
 
 **Files:** `modules/bacterial/pHierCC_assignment_external.nf:26`
 
@@ -190,7 +139,7 @@ file mechanism already does elsewhere.
 
 ---
 
-## 7. "Provisional Legionella support" is unreachable from any entry point
+## 6. "Provisional Legionella support" is unreachable from any entry point
 
 **Files:** `run_pipeline.sh:10`, `run_nf_pipeline_bacterial.sh:45`, `modules/bacterial/mlst_7genes_initial.nf`, `modules/bacterial/AMR_analysis_bacteria.nf`
 
@@ -207,7 +156,7 @@ say the support is auto-detection-only.
 
 ---
 
-## 8. Seven orphaned modules remain on disk
+## 7. Seven orphaned modules remain on disk
 
 **Files:**
 
@@ -234,7 +183,7 @@ module is ever revived.
 
 ---
 
-## 9. `publishDir` for most viral results is commented out
+## 8. `publishDir` for most viral results is commented out
 
 Eighteen `publishDir` directives across sixteen viral modules are commented out,
 covering nearly every intermediate and classification result:
@@ -268,7 +217,7 @@ a temporary measure.
 
 ---
 
-## 10. Two `.gitignore` patterns never matched — FIXED
+## 9. Two `.gitignore` patterns never matched — FIXED
 
 **File:** `.gitignore`
 
