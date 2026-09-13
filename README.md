@@ -9,7 +9,7 @@ It supports both **Illumina (paired‑end)** and **Oxford Nanopore (single‑end
 
 This project is part of the [PlEpiSeq](https://www.pzh.gov.pl/projekty-i-programy/plepiseq/) project, co-funded by the European Union.
 
-Current version: see the [`VERSION`](VERSION) file (**1.8.0**). Release history is in [`CHANGELOG.md`](CHANGELOG.md).
+Current version: see the [`VERSION`](VERSION) file (**1.8.2**). Release history is in [`CHANGELOG.md`](CHANGELOG.md).
 
 ---
 

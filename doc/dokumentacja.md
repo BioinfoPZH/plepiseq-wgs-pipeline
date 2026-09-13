@@ -7,8 +7,8 @@ Michał Kadlof, Michał Łaźniewski
 The document provides technical documentation for the bioinformatics processing protocols (also known as pipelines) developed in the PlEpiSeq project. These protocols are designed for the automatic analysis of SARS-CoV-2, influenza, and RSV viruses and Salmonella, Escherichia and Campylobacter genera sequenced using Illumina and Nanopore technologies. It covers the architecture, installation and execution procedures, the content of the Nextflow modules, and details of the validation tests.
 
 > **Status of this document.** This text was written for the pipeline as it
-> stood in **February 2026** and has not yet been fully revised for release
-> **1.8.0**. Chapters 1, 2 and 3 have been corrected, as has the viral
+> stood in **February 2026** and has not yet been fully revised for the current
+> release (**1.8.2**). Chapters 1, 2 and 3 have been corrected, as has the viral
 > parameter reference in chapter 6; chapters 4, 5 and 7 may
 > still describe earlier behaviour. Where this document disagrees with
 > `README.md`, with `CHANGELOG.md`, or with the `--help` output of the wrapper
