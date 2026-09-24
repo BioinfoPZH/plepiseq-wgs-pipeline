@@ -1,6 +1,10 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.8.2] - 2026-09-24
+### Fixed
+- Local pHierCC assignment now uses an exact pre-computed `local_*` clustering row when it is present in the weekly clustering assets, preserving relationships between local profiles. Profiles not yet clustered continue to use the closest external ST and allelic-distance fallback.
+
 ## [1.8.1] - 2026-09-13
 ### Fixed
 - Bacterial Nanopore species detection failing to properly evaluate kraken2 results

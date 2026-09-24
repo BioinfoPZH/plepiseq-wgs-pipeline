@@ -74,7 +74,7 @@ import os
 import re
 import sys
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import click
 
@@ -346,6 +346,11 @@ def collapse_local_sts(levels, level_keys, sample_st, distance):
 def lookup_linkage(gz_path, index_path, scheme, matching_st, sample_st, distance):
     """Orchestrate a single (linkage, gz, index) lookup.
 
+    Prefer the sample's exact ``local_*`` clustering row when it has already
+    been incorporated into the periodically generated hierCC assets. For a
+    newer local profile that is not indexed yet, fall back to the closest
+    external ST and infer the low-radius levels from its allelic distance.
+
     Returns ``list[str]`` of resolved HC levels on success, or ``None`` on
     any recoverable failure (including the DB-drift case where the ST is
     simply not present in the local index).
@@ -356,20 +361,36 @@ def lookup_linkage(gz_path, index_path, scheme, matching_st, sample_st, distance
         logging.exception("Failed to load hierCC index %s", index_path)
         return None
 
+    direct_local_lookup = (
+        sample_st.startswith(LOCAL_PREFIX) and sample_st in local_dense
+    )
+    lookup_st = sample_st if direct_local_lookup else matching_st
+    if direct_local_lookup:
+        logging.info(
+            "Using pre-computed hierCC row for local ST %r from %s",
+            sample_st, index_path,
+        )
+    elif sample_st.startswith(LOCAL_PREFIX):
+        logging.info(
+            "Local ST %r is not present in %s; falling back to closest "
+            "external ST %r at distance %d",
+            sample_st, index_path, matching_st, distance,
+        )
+
     start_offset = find_offset(
-        matching_st, numeric_cps, local_dense, local_section_offset,
+        lookup_st, numeric_cps, local_dense, local_section_offset,
     )
     if start_offset is None:
         logging.warning(
             "ST %r not present in local hierCC index %s - likely DB drift",
-            matching_st, index_path,
+            lookup_st, index_path,
         )
         return None
 
-    stop_offset = None if matching_st.startswith(LOCAL_PREFIX) else local_section_offset
+    stop_offset = None if lookup_st.startswith(LOCAL_PREFIX) else local_section_offset
 
     try:
-        row = scan_hiercc_row(gz_path, start_offset, matching_st, stop_offset)
+        row = scan_hiercc_row(gz_path, start_offset, lookup_st, stop_offset)
     except PhierccDataError:
         logging.exception("Failed to scan hierCC gz %s", gz_path)
         return None
@@ -378,16 +399,18 @@ def lookup_linkage(gz_path, index_path, scheme, matching_st, sample_st, distance
         logging.warning(
             "ST %r located in index %s but row missing from gz %s - "
             "index/gz out of sync",
-            matching_st, index_path, gz_path,
+            lookup_st, index_path, gz_path,
         )
         return None
 
     try:
         raw_levels = extract_levels(row, scheme.hiercc_columns)
     except MissingLevelError:
-        logging.exception("hierCC row for ST %r is too short", matching_st)
+        logging.exception("hierCC row for ST %r is too short", lookup_st)
         return None
 
+    if direct_local_lookup:
+        return raw_levels
     return collapse_local_sts(raw_levels, scheme.level_keys, sample_st, distance)
 
 
